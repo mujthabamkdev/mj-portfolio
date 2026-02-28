@@ -1,109 +1,91 @@
-import { Github, ExternalLink } from 'lucide-react';
-
-interface Project {
-  name: string;
-  description: string;
-  technologies: string[];
-  githubUrl: string;
-  liveUrl?: string;
-}
-
-const projects: Project[] = [
+const projects = [
   {
-    name: 'Payment Solutions System',
-    description: 'Comprehensive payment solution with card selection, tokenization, and installment card binding features with risk handling and monitoring.',
-    technologies: ['Java Spring Boot', 'Angular', 'Microservices', 'Docker'],
-    githubUrl: 'https://github.com/mujthabamkdev',
+    number: '01',
+    title: 'Instalment Card Binding',
+    company: 'Ant International',
+    description: 'Implemented a solution to streamline instalment card payments and improve user experience. Created architecture, solution analysis, release review, and integration documents. Delivered a user-friendly card binding process reducing repetitive data entry.',
+    tech: ['Java Spring', 'Java 17', 'RPC', 'SQL'],
   },
   {
-    name: 'E-Commerce Platform',
-    description: 'Full-stack e-commerce platform with real-time inventory management and secure payment integration.',
-    technologies: ['Angular', 'TypeScript', 'Java Spring Boot', 'PostgreSQL'],
-    githubUrl: 'https://github.com/mujthabamkdev',
+    number: '02',
+    title: 'IFE — Insurance Frontend',
+    company: 'KG Information System',
+    description: 'Web solution for insurance claims, policy creation with dynamic capability to handle different user types and products. Integrated payment system with different authorization levels for agents and public users.',
+    tech: ['Angular 10', 'Java 8', 'Spring Microservices', 'Elasticsearch', 'Material UI'],
   },
   {
-    name: 'Microservices Architecture',
-    description: 'Distributed system architecture with service discovery, API gateway, and centralized logging.',
-    technologies: ['Spring Boot', 'Docker', 'Elasticsearch', 'Kubernetes'],
-    githubUrl: 'https://github.com/mujthabamkdev',
+    number: '03',
+    title: 'Jurong Port Online',
+    company: 'Mediaconcepts Consulting',
+    description: 'Migrated existing legacy Java framework projects to Angular and Java Spring Boot. Implemented data-driven webpages for new features and delivered critical production fixes in short time periods.',
+    tech: ['Angular 6', 'Java 8', 'Spring Boot', 'Oracle', 'Microservices'],
   },
   {
-    name: 'Dashboard Analytics',
-    description: 'Real-time analytics dashboard with data visualization and interactive charts for business intelligence.',
-    technologies: ['Angular', 'TypeScript', 'RxJS', 'Chart.js'],
-    githubUrl: 'https://github.com/mujthabamkdev',
-  },
-  {
-    name: 'API Integration Suite',
-    description: 'RESTful API development with comprehensive documentation, authentication, and rate limiting.',
-    technologies: ['Java Spring Boot', 'Spring Security', 'Swagger', 'JWT'],
-    githubUrl: 'https://github.com/mujthabamkdev',
-  },
-  {
-    name: 'Responsive Web Application',
-    description: 'Modern, responsive web application with mobile-first design and progressive web app capabilities.',
-    technologies: ['Angular', 'TypeScript', 'CSS', 'PWA'],
-    githubUrl: 'https://github.com/mujthabamkdev',
+    number: '04',
+    title: 'Gatekeeper — Visitor Management',
+    company: 'Softend Technoserve',
+    description: 'Visitor Management System at Indian Naval Academy. Designed features for generating and managing Internal Driving Licenses, Entry Passes, Visitor Logs, and Dependent Passes.',
+    tech: ['.NET MVC', 'C#', 'JavaScript', 'SQL Server', 'Bootstrap'],
   },
 ];
 
 const Projects = () => {
   return (
-    <section id="projects" className="py-20 px-6 bg-white relative z-10">
-      <div className="container mx-auto">
-        <h2 className="text-4xl md:text-5xl font-semibold text-center mb-4 fade-in-up">
-          <span className="gradient-text">Projects</span>
-        </h2>
-        <p className="text-center text-slate-600 mb-12 text-base fade-in-up animation-delay-100">
-          Showcase of my recent work and contributions
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <section id="projects" className="py-32 px-6 relative">
+      <div className="max-w-6xl mx-auto">
+        {/* Section Header */}
+        <div className="mb-16 reveal">
+          <p className="text-xs tracking-[0.3em] text-accent uppercase mb-3">// PORTFOLIO</p>
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold uppercase tracking-tight">
+            PROJECTS
+          </h2>
+        </div>
+
+        {/* Projects List */}
+        <div className="space-y-12">
           {projects.map((project, index) => (
             <div
-              key={project.name}
-              className="bg-white rounded-lg p-6 shadow-sm card-hover border border-slate-200 flex flex-col group relative overflow-hidden fade-in-up shimmer-subtle"
-              style={{ transitionDelay: `${index * 0.05}s` }}
+              key={project.number}
+              className="group dashed-card rounded-lg p-8 md:p-10 reveal"
+              style={{ transitionDelay: `${index * 0.1}s` }}
             >
-              <h3 className="text-xl font-semibold mb-3 text-slate-900 transition-colors duration-300 group-hover:text-blue-600">
-                {project.name}
-              </h3>
-              <p className="text-slate-600 mb-4 flex-grow text-sm leading-relaxed">
-                {project.description}
-              </p>
-              
-              <div className="flex flex-wrap gap-2 mb-4">
-                {project.technologies.map((tech, techIdx) => (
-                  <span
-                    key={tech}
-                    className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-medium transition-all duration-300 hover:bg-gradient-to-r hover:from-blue-500 hover:to-cyan-500 hover:text-white scale-in"
-                    style={{ transitionDelay: `${(techIdx + index) * 0.02}s` }}
-                  >
-                    {tech}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
+                {/* Number */}
+                <div className="md:col-span-2">
+                  <span className="text-5xl md:text-6xl font-black text-white/[0.06] tracking-tight leading-none select-none group-hover:text-accent/20 transition-colors duration-500">
+                    {project.number}
                   </span>
-                ))}
-              </div>
-              
-              <div className="flex gap-3">
-                <a
-                  href={project.githubUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-md hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 text-sm font-medium ripple"
-                >
-                  <Github size={16} />
-                  GitHub
-                </a>
-                {project.liveUrl && (
-                  <a
-                    href={project.liveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-900 rounded-md hover:border-blue-500 hover:bg-blue-50 transition-all duration-300 text-sm font-medium ripple"
-                  >
-                    <ExternalLink size={16} />
-                    Live
-                  </a>
-                )}
+                </div>
+
+                {/* Content */}
+                <div className="md:col-span-10">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h3 className="text-xl md:text-2xl font-semibold tracking-tight group-hover:text-accent transition-colors duration-300">
+                        {project.title}
+                      </h3>
+                      <p className="text-xs text-muted mt-1">{project.company}</p>
+                    </div>
+                    <div className="w-8 h-8 border border-white/10 rounded flex items-center justify-center flex-shrink-0 group-hover:border-accent/40 transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted group-hover:text-accent transition-colors">
+                        <path d="M7 17L17 7M17 7H7M17 7V17" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-muted leading-relaxed mt-4 mb-6 max-w-2xl">
+                    {project.description}
+                  </p>
+
+                  <div>
+                    <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mb-3">Tools & Features</p>
+                    <div className="flex flex-wrap gap-2">
+                      {project.tech.map((t) => (
+                        <span key={t} className="tech-tag">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
