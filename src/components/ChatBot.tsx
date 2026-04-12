@@ -83,8 +83,14 @@ const ChatBot = () => {
             });
 
             const data = await response.json();
-            const reply = data.choices?.[0]?.message?.content;
+            let reply = data.choices?.[0]?.message?.content;
             if (reply) {
+                // Filter out Pollinations API broadcast warnings
+                const warningPattern = /⚠️ \*\*IMPORTANT NOTICE\*\* ⚠️[\s\S]*/;
+                reply = reply.replace(warningPattern, '').trim();
+
+                if (!reply) reply = "I'm experiencing a bit of static right now, what was that?";
+
                 setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
                 replied = true;
             }
