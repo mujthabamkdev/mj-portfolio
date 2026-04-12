@@ -64,9 +64,10 @@ const ChatBot = () => {
         setIsLoading(true);
 
         const models = [
-            'qwen/qwen3-coder:free',
+            'deepseek/deepseek-r1:free',
+            'google/gemma-3-27b-it:free',
             'meta-llama/llama-3.1-8b-instruct:free',
-            'mistralai/mistral-7b-instruct:free',
+            'microsoft/phi-3-mini-128k-instruct:free',
         ];
 
         let replied = false;

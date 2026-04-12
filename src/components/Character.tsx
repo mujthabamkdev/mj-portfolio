@@ -1,231 +1,172 @@
 import { useRef, useEffect, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { SkeletonUtils } from 'three-stdlib';
 
 /* ──────────────────────────────────────
-   Character model with eye + head tracking
+   Shared mouse tracker (for subtle gaze blend)
    ────────────────────────────────────── */
-function CharacterModel({ scrollProgress }: { scrollProgress: number }) {
-    const groupRef = useRef<THREE.Group>(null);
-    const { scene } = useGLTF('/models/character.glb');
-    const mouse = useRef({ x: 0, y: 0 });
-    const blinkTimer = useRef(0);
-    const isBlinking = useRef(false);
+const mouse = { x: 0, y: 0 };
+if (typeof window !== 'undefined') {
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -((e.clientY / window.innerHeight) * 2 - 1);
+    }, { passive: true });
+}
 
-    // Clone scene once
-    const clonedScene = useMemo(() => {
-        const clone = scene.clone(true);
-        clone.traverse((child) => {
+/* ──────────────────────────────────────
+   Character model
+   ────────────────────────────────────── */
+interface CharacterModelProps {
+    contentSide: 'left' | 'right'; // which side the CONTENT is on
+}
+
+function CharacterModel({ contentSide }: CharacterModelProps) {
+    const { scene } = useGLTF('/models/mj_profile_porfolio.vrm.glb');
+    const groupRef = useRef<THREE.Group>(null);
+    // Stable clone — useMemo prevents re-creating on every re-render
+    // Without this, contentSide prop changes recreate the clone and reset T-pose
+    const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
+
+    // Tracked bones
+    const headBone = useRef<THREE.Bone | null>(null);
+    const neckBone = useRef<THREE.Bone | null>(null);
+    const spineBone = useRef<THREE.Bone | null>(null);
+    const lUpperArm = useRef<THREE.Bone | null>(null);
+    const rUpperArm = useRef<THREE.Bone | null>(null);
+    const lLowerArm = useRef<THREE.Bone | null>(null);
+    const rLowerArm = useRef<THREE.Bone | null>(null);
+
+    useEffect(() => {
+        clonedScene.traverse((child) => {
+            const bone = child as THREE.Bone;
+            const n = (bone.name ?? '').toLowerCase();
+
+            if (!headBone.current && (n === 'j_bip_c_head' || (n.includes('head') && !n.includes('headtop')))) headBone.current = bone;
+            if (!neckBone.current && (n === 'j_bip_c_neck' || n.includes('neck'))) neckBone.current = bone;
+            if (!spineBone.current && (n === 'j_bip_c_chest' || n === 'j_bip_c_spine' || n.includes('spine'))) spineBone.current = bone;
+
+            // Arm bones
+            if (!lUpperArm.current && (n === 'j_bip_l_upperarm' || (n.includes('left') && n.includes('arm') && !n.includes('lower') && !n.includes('fore')))) lUpperArm.current = bone;
+            if (!rUpperArm.current && (n === 'j_bip_r_upperarm' || (n.includes('right') && n.includes('arm') && !n.includes('lower') && !n.includes('fore')))) rUpperArm.current = bone;
+            if (!lLowerArm.current && (n === 'j_bip_l_lowerarm' || (n.includes('left') && (n.includes('lower') || n.includes('fore'))))) lLowerArm.current = bone;
+            if (!rLowerArm.current && (n === 'j_bip_r_lowerarm' || (n.includes('right') && (n.includes('lower') || n.includes('fore'))))) rLowerArm.current = bone;
+
+            // Material quality
             if ((child as THREE.Mesh).isMesh) {
                 const mesh = child as THREE.Mesh;
-                if (mesh.material) {
-                    const mat = (mesh.material as THREE.MeshStandardMaterial);
-                    if (mat.emissive) {
-                        mat.emissive = new THREE.Color(0xb4a0e5);
-                        mat.emissiveIntensity = 0.02;
-                    }
-                }
+                (mesh.material as THREE.MeshStandardMaterial).roughness = 0.55;
+                mesh.castShadow = true;
             }
         });
-        return clone;
-    }, [scene]);
 
-    // Get all skinned meshes for morph targets
-    const skinnedMeshes = useMemo(() => {
-        const meshes: THREE.SkinnedMesh[] = [];
-        clonedScene.traverse((child) => {
-            if ((child as THREE.SkinnedMesh).isSkinnedMesh) {
-                meshes.push(child as THREE.SkinnedMesh);
-            }
-        });
-        return meshes;
-    }, [clonedScene]);
-
-    // Mouse tracking
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            mouse.current.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
-        };
-        window.addEventListener('mousemove', handleMouseMove);
-        return () => window.removeEventListener('mousemove', handleMouseMove);
+        // ─── Straight arms close to body ───
+        // VRM rest pose has arms up. Rotating Z negative on left arm brings it down.
+        if (lUpperArm.current) {
+            lUpperArm.current.rotation.x = 0;
+            lUpperArm.current.rotation.y = 0.12;   // slight inward tuck
+            lUpperArm.current.rotation.z = -1.3;   // bring arm DOWN (flipped from T-pose)
+        }
+        if (rUpperArm.current) {
+            rUpperArm.current.rotation.x = 0;
+            rUpperArm.current.rotation.y = -0.12;
+            rUpperArm.current.rotation.z = 1.3;    // mirror for right arm
+        }
+        // Lower arms: fully straight down
+        if (lLowerArm.current) {
+            lLowerArm.current.rotation.x = 0;
+            lLowerArm.current.rotation.y = 0;
+            lLowerArm.current.rotation.z = 0;
+        }
+        if (rLowerArm.current) {
+            rLowerArm.current.rotation.x = 0;
+            rLowerArm.current.rotation.y = 0;
+            rLowerArm.current.rotation.z = 0;
+        }
     }, []);
 
-    // Helper to set morph target
-    const setMorph = (name: string, value: number) => {
-        skinnedMeshes.forEach((mesh) => {
-            if (mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
-                const idx = mesh.morphTargetDictionary[name];
-                if (idx !== undefined) {
-                    mesh.morphTargetInfluences[idx] = value;
-                }
-            }
-        });
-    };
+    // Target X: character is on the OPPOSITE side of content
+    // content=left  → character right → targetX = +0.9
+    // content=right → character left  → targetX = -0.9
+    const targetXRef = useRef(contentSide === 'left' ? 0.9 : -0.9);
+
+    // Target head look: toward content
+    // content=left  → look left  → negative Y rotation
+    // content=right → look right → positive Y rotation
+    const targetHeadYRef = useRef(contentSide === 'left' ? -0.45 : 0.45);
 
     useFrame((state, delta) => {
         if (!groupRef.current) return;
         const time = state.clock.getElapsedTime();
 
-        // ─── Idle breathing ───
-        const baseY = -1.8;
-        groupRef.current.position.y = baseY + Math.sin(time * 1.2) * 0.015;
+        // ─── Enforce arm pose every frame (prevents model animation overriding) ───
+        if (lUpperArm.current) { lUpperArm.current.rotation.set(0, 0.12, -1.3); }
+        if (rUpperArm.current) { rUpperArm.current.rotation.set(0, -0.12, 1.3); }
+        if (lLowerArm.current) { lLowerArm.current.rotation.set(0, 0, 0); }
+        if (rLowerArm.current) { rLowerArm.current.rotation.set(0, 0, 0); }
 
-        // ─── Scroll-based transforms ───
-        // Hero: centered. Scroll → shift left. Further → zoom out
-        const targetX = scrollProgress < 0.3
-            ? 0
-            : THREE.MathUtils.lerp(0, -1.2, (scrollProgress - 0.3) / 0.3);
+        // Update targets when prop changes
+        const newTargetX = contentSide === 'left' ? 0.9 : -0.9;
+        const newHeadY = contentSide === 'left' ? -0.45 : 0.45;
+        targetXRef.current = THREE.MathUtils.lerp(targetXRef.current, newTargetX, delta * 2.5);
+        targetHeadYRef.current = THREE.MathUtils.lerp(targetHeadYRef.current, newHeadY, delta * 2.5);
 
-        groupRef.current.position.x = THREE.MathUtils.lerp(
-            groupRef.current.position.x,
-            targetX,
-            delta * 3
-        );
+        // ─── Position: smooth slide to opposite side ───
+        const baseY = -0.85;
+        groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, targetXRef.current, delta * 3);
+        groupRef.current.position.y = baseY + Math.sin(time * 1.0) * 0.01;
 
-        // ─── Eye blinking ───
-        blinkTimer.current += delta;
-        if (!isBlinking.current && blinkTimer.current > 3 + Math.random() * 4) {
-            isBlinking.current = true;
-            blinkTimer.current = 0;
+        // ─── Body slight turn toward content ───
+        const targetBodyY = contentSide === 'left' ? -0.2 : 0.2;
+        groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetBodyY, delta * 2);
+
+        // ─── Head: section-based look direction + subtle mouse blend ───
+        if (headBone.current) {
+            // Primary: look toward content side; secondary: slight mouse tracking
+            const headTargetY = targetHeadYRef.current + mouse.x * 0.12;
+            const headTargetX = mouse.y * 0.1;
+            headBone.current.rotation.y = THREE.MathUtils.lerp(headBone.current.rotation.y, headTargetY, delta * 3);
+            headBone.current.rotation.x = THREE.MathUtils.lerp(headBone.current.rotation.x, headTargetX, delta * 3);
         }
-        if (isBlinking.current) {
-            const blinkPhase = blinkTimer.current;
-            if (blinkPhase < 0.08) {
-                const v = blinkPhase / 0.08;
-                setMorph('eyeBlinkLeft', v);
-                setMorph('eyeBlinkRight', v);
-            } else if (blinkPhase < 0.16) {
-                const v = 1 - (blinkPhase - 0.08) / 0.08;
-                setMorph('eyeBlinkLeft', v);
-                setMorph('eyeBlinkRight', v);
-            } else {
-                setMorph('eyeBlinkLeft', 0);
-                setMorph('eyeBlinkRight', 0);
-                isBlinking.current = false;
-                blinkTimer.current = 0;
-            }
+        if (neckBone.current) {
+            neckBone.current.rotation.y = THREE.MathUtils.lerp(neckBone.current.rotation.y, targetHeadYRef.current * 0.3, delta * 2);
         }
-
-        // ─── Eye gaze tracking ───
-        const mx = mouse.current.x;
-        const my = mouse.current.y;
-
-        // Horizontal gaze
-        if (mx > 0.05) {
-            setMorph('eyeLookOutLeft', mx * 0.6);
-            setMorph('eyeLookInRight', mx * 0.6);
-            setMorph('eyeLookInLeft', 0);
-            setMorph('eyeLookOutRight', 0);
-        } else if (mx < -0.05) {
-            setMorph('eyeLookInLeft', -mx * 0.6);
-            setMorph('eyeLookOutRight', -mx * 0.6);
-            setMorph('eyeLookOutLeft', 0);
-            setMorph('eyeLookInRight', 0);
-        } else {
-            setMorph('eyeLookOutLeft', 0);
-            setMorph('eyeLookInRight', 0);
-            setMorph('eyeLookInLeft', 0);
-            setMorph('eyeLookOutRight', 0);
-        }
-
-        // Vertical gaze
-        if (my > 0.05) {
-            setMorph('eyeLookUpLeft', my * 0.4);
-            setMorph('eyeLookUpRight', my * 0.4);
-            setMorph('eyeLookDownLeft', 0);
-            setMorph('eyeLookDownRight', 0);
-        } else if (my < -0.05) {
-            setMorph('eyeLookDownLeft', -my * 0.4);
-            setMorph('eyeLookDownRight', -my * 0.4);
-            setMorph('eyeLookUpLeft', 0);
-            setMorph('eyeLookUpRight', 0);
-        } else {
-            setMorph('eyeLookUpLeft', 0);
-            setMorph('eyeLookUpRight', 0);
-            setMorph('eyeLookDownLeft', 0);
-            setMorph('eyeLookDownRight', 0);
-        }
-
-        // Subtle mouth micro-expression
-        setMorph('mouthSmileLeft', 0.15 + Math.sin(time * 0.5) * 0.05);
-        setMorph('mouthSmileRight', 0.15 + Math.sin(time * 0.5) * 0.05);
-
-        // ─── Head tracking ───
-        const headBone = clonedScene.getObjectByName('Head');
-        if (headBone) {
-            headBone.rotation.x = THREE.MathUtils.lerp(
-                headBone.rotation.x,
-                -my * 0.25,
-                delta * 3
-            );
-            headBone.rotation.y = THREE.MathUtils.lerp(
-                headBone.rotation.y,
-                mx * 0.4,
-                delta * 3
-            );
-            headBone.rotation.z = THREE.MathUtils.lerp(
-                headBone.rotation.z,
-                -mx * 0.08,
-                delta * 3
-            );
-        }
-
-        // Spine subtle follow
-        const spineBone = clonedScene.getObjectByName('Spine1') || clonedScene.getObjectByName('Spine');
-        if (spineBone) {
-            spineBone.rotation.x = THREE.MathUtils.lerp(spineBone.rotation.x, -my * 0.06, delta * 2);
-            spineBone.rotation.y = THREE.MathUtils.lerp(spineBone.rotation.y, mx * 0.08, delta * 2);
-        }
-
-        const neckBone = clonedScene.getObjectByName('Neck');
-        if (neckBone) {
-            neckBone.rotation.x = THREE.MathUtils.lerp(neckBone.rotation.x, -my * 0.12, delta * 2.5);
-            neckBone.rotation.y = THREE.MathUtils.lerp(neckBone.rotation.y, mx * 0.15, delta * 2.5);
+        if (spineBone.current) {
+            spineBone.current.rotation.y = THREE.MathUtils.lerp(spineBone.current.rotation.y, targetHeadYRef.current * 0.1, delta * 1.5);
         }
     });
 
-    // Position/scale based on scroll: bust → full body
-    const scale = scrollProgress < 0.5 ? 1.6 : THREE.MathUtils.lerp(1.6, 1.2, (scrollProgress - 0.5) / 0.3);
-
     return (
-        <group ref={groupRef} position={[0, -1.8, 0]} scale={scale}>
+        <group ref={groupRef} position={[contentSide === 'left' ? 0.9 : -0.9, -0.85, 0]} scale={1.0}>
             <primitive object={clonedScene} />
         </group>
     );
 }
 
 /* ──────────────────────────────────────
-   Camera rig: makes camera look at head area
+   Camera rig
    ────────────────────────────────────── */
 function CameraRig() {
-    const lookTarget = useRef(new THREE.Vector3(0, 0.9, 0));
-
-    useFrame(({ camera }) => {
-        camera.lookAt(lookTarget.current);
-    });
-
+    const { camera } = useThree();
+    const target = useRef(new THREE.Vector3(0, 0.5, 0));
+    useFrame(() => { camera.lookAt(target.current); });
     return null;
 }
 
 /* ──────────────────────────────────────
-   Scene: lights + character
+   Scene
    ────────────────────────────────────── */
-function SceneContent({ scrollProgress }: { scrollProgress: number }) {
+function SceneContent({ contentSide }: { contentSide: 'left' | 'right' }) {
     return (
         <>
             <CameraRig />
-            <ambientLight intensity={0.4} color="#b4a0e5" />
-            <directionalLight position={[3, 5, 5]} intensity={1.5} color="#e0d4ff" />
-            <directionalLight position={[-2, 3, 3]} intensity={0.6} color="#8b6fd4" />
-            <pointLight position={[0, 3, -4]} intensity={2} color="#b4a0e5" distance={10} />
-            <pointLight position={[0, 0, 5]} intensity={0.4} color="#ffffff" distance={8} />
-
-            {/* Screen glow from below */}
-            <pointLight position={[0, -1, 2]} intensity={0.6} color="#b4a0e5" distance={5} />
-
-            <CharacterModel scrollProgress={scrollProgress} />
+            <ambientLight intensity={0.5} color="#c0b0f0" />
+            <directionalLight position={[4, 6, 5]} intensity={2.0} color="#e8e0ff" castShadow />
+            <directionalLight position={[-3, 4, 3]} intensity={0.8} color="#9b7fe8" />
+            <pointLight position={[0, 3, -3]} intensity={1.5} color="#b4a0e5" distance={12} />
+            <pointLight position={[0, 1.5, 4]} intensity={0.6} color="#ffffff" distance={8} />
+            <CharacterModel contentSide={contentSide} />
         </>
     );
 }
@@ -234,30 +175,27 @@ function SceneContent({ scrollProgress }: { scrollProgress: number }) {
    Exported wrapper
    ────────────────────────────────────── */
 interface CharacterProps {
-    scrollProgress: number;
+    contentSide: 'left' | 'right';
 }
 
-const Character = ({ scrollProgress }: CharacterProps) => {
-    return (
-        <div className="character-canvas-container">
-            <Canvas
-                camera={{ position: [0, 1.0, 2.8], fov: 35 }}
-                gl={{
-                    alpha: true,
-                    antialias: true,
-                    powerPreference: 'high-performance',
-                    toneMapping: THREE.ACESFilmicToneMapping,
-                    toneMappingExposure: 1.3,
-                }}
-                style={{ background: 'transparent' }}
-            >
-                <SceneContent scrollProgress={scrollProgress} />
-            </Canvas>
-        </div>
-    );
-};
+const Character = ({ contentSide }: CharacterProps) => (
+    <div className="character-canvas-container">
+        <Canvas
+            camera={{ position: [0, 0.6, 2.4], fov: 40 }}
+            gl={{
+                alpha: true,
+                antialias: true,
+                powerPreference: 'high-performance',
+                toneMapping: THREE.ACESFilmicToneMapping,
+                toneMappingExposure: 1.4,
+            }}
+            style={{ background: 'transparent' }}
+        >
+            <SceneContent contentSide={contentSide} />
+        </Canvas>
+    </div>
+);
 
-// Preload
-useGLTF.preload('/models/character.glb');
+useGLTF.preload('/models/mj_profile_porfolio.vrm.glb');
 
 export default Character;

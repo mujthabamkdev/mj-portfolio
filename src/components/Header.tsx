@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const navLinks = [
-  { label: 'ABOUT', href: '#about' },
-  { label: 'WORK', href: '#work' },
-  { label: 'PROJECTS', href: '#projects' },
-  { label: 'PLAY', href: '#play' },
-  { label: 'CONTACT', href: '#contact' },
+  { label: 'ABOUT', href: '#about', route: false },
+  { label: 'WORK', href: '#work', route: false },
+  { label: 'PROJECTS', href: '#projects', route: false },
+  { label: 'PLAY', href: '/play', route: true },
+  { label: 'CONTACT', href: '#contact', route: false },
 ];
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 50);
@@ -17,11 +19,13 @@ const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, link: { href: string; route: boolean }) => {
     e.preventDefault();
-    const el = document.querySelector(href);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+    if (link.route) {
+      navigate(link.href);
+    } else {
+      const el = document.querySelector(link.href);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -45,8 +49,9 @@ const Header = () => {
               <a
                 key={link.label}
                 href={link.href}
-                onClick={(e) => handleNavClick(e, link.href)}
-                className="text-xs font-medium tracking-[0.2em] text-muted hover:text-white transition-colors duration-300"
+                onClick={(e) => handleNavClick(e, link)}
+                className={`text-xs font-medium tracking-[0.2em] transition-colors duration-300 ${link.route ? 'text-accent hover:text-white' : 'text-muted hover:text-white'
+                  }`}
               >
                 {link.label}
               </a>

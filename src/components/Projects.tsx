@@ -32,63 +32,66 @@ const projects = [
 const Projects = () => {
   return (
     <section id="projects" className="py-32 px-6 relative">
-      <div className="max-w-6xl mx-auto">
-        {/* Section Header */}
-        <div className="mb-16 reveal">
-          <p className="text-xs tracking-[0.3em] text-accent uppercase mb-3">// PORTFOLIO</p>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold uppercase tracking-tight">
-            PROJECTS
-          </h2>
-        </div>
+      {/* Content pushed to the right half — character sits on the left */}
+      <div className="max-w-7xl mx-auto flex justify-end">
+        <div className="w-full md:w-[58%]">
+          {/* Section Header */}
+          <div className="mb-16 reveal">
+            <p className="text-xs tracking-[0.3em] text-accent uppercase mb-3">// PORTFOLIO</p>
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold uppercase tracking-tight">
+              PROJECTS
+            </h2>
+          </div>
 
-        {/* Projects List */}
-        <div className="space-y-12">
-          {projects.map((project, index) => (
-            <div
-              key={project.number}
-              className="group dashed-card rounded-lg p-8 md:p-10 reveal"
-              style={{ transitionDelay: `${index * 0.1}s` }}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
-                {/* Number */}
-                <div className="md:col-span-2">
-                  <span className="text-5xl md:text-6xl font-black text-white/[0.06] tracking-tight leading-none select-none group-hover:text-accent/20 transition-colors duration-500">
-                    {project.number}
-                  </span>
-                </div>
-
-                {/* Content */}
-                <div className="md:col-span-10">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h3 className="text-xl md:text-2xl font-semibold tracking-tight group-hover:text-accent transition-colors duration-300">
-                        {project.title}
-                      </h3>
-                      <p className="text-xs text-muted mt-1">{project.company}</p>
-                    </div>
-                    <div className="w-8 h-8 border border-white/10 rounded flex items-center justify-center flex-shrink-0 group-hover:border-accent/40 transition-colors">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted group-hover:text-accent transition-colors">
-                        <path d="M7 17L17 7M17 7H7M17 7V17" />
-                      </svg>
-                    </div>
+          {/* Projects List */}
+          <div className="space-y-12">
+            {projects.map((project, index) => (
+              <div
+                key={project.number}
+                className="group dashed-card rounded-lg p-8 md:p-10 reveal"
+                style={{ transitionDelay: `${index * 0.1}s` }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
+                  {/* Number */}
+                  <div className="md:col-span-2">
+                    <span className="text-5xl md:text-6xl font-black text-white/[0.06] tracking-tight leading-none select-none group-hover:text-accent/20 transition-colors duration-500">
+                      {project.number}
+                    </span>
                   </div>
 
-                  <p className="text-sm text-muted leading-relaxed mt-4 mb-6 max-w-2xl">
-                    {project.description}
-                  </p>
+                  {/* Content */}
+                  <div className="md:col-span-10">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h3 className="text-xl md:text-2xl font-semibold tracking-tight group-hover:text-accent transition-colors duration-300">
+                          {project.title}
+                        </h3>
+                        <p className="text-xs text-muted mt-1">{project.company}</p>
+                      </div>
+                      <div className="w-8 h-8 border border-white/10 rounded flex items-center justify-center flex-shrink-0 group-hover:border-accent/40 transition-colors">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted group-hover:text-accent transition-colors">
+                          <path d="M7 17L17 7M17 7H7M17 7V17" />
+                        </svg>
+                      </div>
+                    </div>
 
-                  <div>
-                    <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mb-3">Tools & Features</p>
-                    <div className="flex flex-wrap gap-2">
-                      {project.tech.map((t) => (
-                        <span key={t} className="tech-tag">{t}</span>
-                      ))}
+                    <p className="text-sm text-muted leading-relaxed mt-4 mb-6 max-w-2xl">
+                      {project.description}
+                    </p>
+
+                    <div>
+                      <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mb-3">Tools & Features</p>
+                      <div className="flex flex-wrap gap-2">
+                        {project.tech.map((t) => (
+                          <span key={t} className="tech-tag">{t}</span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </section>
