@@ -1,273 +1,324 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect } from 'react';
 
-const CW = 700;   // canvas width
-const CH = 420;   // canvas height
+const CW = 700;
+const CH = 420;
+const GX = 80;
+const GY = 50;
+const GW = 540;
+const GH = 220;
 
-// Goal dimensions — takes up most of upper canvas
-const GX = 80;    // goal left x
-const GY = 50;    // goal top y
-const GW = 540;   // goal width
-const GH = 220;   // goal height
-
+const BALL_START_X = CW / 2;
+const BALL_START_Y = CH - 45;
 const BALL_R = 14;
+
 const GOALIE_W = 80;
 const GOALIE_H = 100;
 const TOTAL_ROUNDS = 5;
 
-interface Shot {
-    aimX: number;
-    aimY: number;
-    goalieX: number;
-    scored: boolean;
-}
+type Phase = 'idle' | 'aiming' | 'shooting' | 'result' | 'done';
 
 const PenaltyGame = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [score, setScore] = useState({ player: 0, ai: 0 });
     const [round, setRound] = useState(0);
-    const [phase, setPhase] = useState<'aim' | 'result' | 'done'>('aim');
-    const [aimX, setAimX] = useState(GW / 2);
-    const [aimY, setAimY] = useState(GH / 2);
-    const [message, setMessage] = useState('Move mouse into the goal — click to shoot!');
-    const [shots, setShots] = useState<Shot[]>([]);
-    const [isHovering, setIsHovering] = useState(false);
+    const [message, setMessage] = useState('Drag from the ball to aim, then release to shoot!');
+    const [phase, setPhase] = useState<Phase>('idle');
 
-    const draw = useCallback(() => {
+    const state = useRef({
+        phase: 'idle' as Phase,
+        ballX: BALL_START_X,
+        ballY: BALL_START_Y,
+        ballScale: 1,
+        goalieX: GX + GW / 2 - GOALIE_W / 2,
+        goalieY: GY + GH - GOALIE_H,
+        aimX: CW / 2,
+        aimY: GY + GH / 2,
+        targetX: 0,
+        targetY: 0,
+        goalieTargetX: 0,
+        goalieTargetY: 0,
+        animStartTime: 0,
+        scored: false,
+    });
+
+    useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+        let animId: number;
 
-        // Background — grass
-        const grassGrad = ctx.createLinearGradient(0, 0, 0, CH);
-        grassGrad.addColorStop(0, '#0c4a0c');
-        grassGrad.addColorStop(1, '#082b08');
-        ctx.fillStyle = grassGrad;
-        ctx.fillRect(0, 0, CW, CH);
+        const draw = (timestamp: number) => {
+            const s = state.current;
 
-        // Grass stripes
-        for (let i = 0; i < CW; i += 40) {
-            ctx.fillStyle = i % 80 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent';
-            ctx.fillRect(i, 0, 40, CH);
-        }
+            // ─── Animations ───
+            if (s.phase === 'shooting') {
+                const elapsed = timestamp - s.animStartTime;
+                const duration = 500;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 2);
+                
+                s.ballX = BALL_START_X + (s.targetX - BALL_START_X) * easeOut;
+                s.ballY = BALL_START_Y + (s.targetY - BALL_START_Y) * easeOut;
+                s.ballScale = 1 - (0.45 * Math.pow(easeOut, 2));
 
-        // ─── Posts: 3D perspective ───
-        // Back post (further away, slightly grey)
-        const postDepth = 35;
-        ctx.fillStyle = 'rgba(200,200,200,0.4)';
-        // Top back
-        ctx.fillRect(GX + postDepth, GY + postDepth, GW - postDepth * 2, 6);
-        // Left back post
-        ctx.fillRect(GX + postDepth, GY + postDepth, 6, GH - postDepth);
-        // Right back post
-        ctx.fillRect(GX + GW - postDepth - 6, GY + postDepth, 6, GH - postDepth);
-
-        // Side connectors (perspective lines)
-        ctx.strokeStyle = 'rgba(200,200,200,0.5)';
-        ctx.lineWidth = 3;
-        // Top-left connector
-        ctx.beginPath(); ctx.moveTo(GX, GY); ctx.lineTo(GX + postDepth, GY + postDepth); ctx.stroke();
-        // Top-right connector
-        ctx.beginPath(); ctx.moveTo(GX + GW, GY); ctx.lineTo(GX + GW - postDepth, GY + postDepth); ctx.stroke();
-        // Bottom-left connector
-        ctx.beginPath(); ctx.moveTo(GX, GY + GH); ctx.lineTo(GX + postDepth, GY + GH); ctx.stroke();
-        // Bottom-right connector
-        ctx.beginPath(); ctx.moveTo(GX + GW, GY + GH); ctx.lineTo(GX + GW - postDepth, GY + GH); ctx.stroke();
-
-        // Net
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-        ctx.lineWidth = 1;
-        for (let x = GX + postDepth; x <= GX + GW - postDepth; x += 25) {
-            ctx.beginPath(); ctx.moveTo(x, GY + postDepth); ctx.lineTo(x, GY + GH); ctx.stroke();
-        }
-        for (let y = GY + postDepth; y <= GY + GH; y += 25) {
-            ctx.beginPath(); ctx.moveTo(GX + postDepth, y); ctx.lineTo(GX + GW - postDepth, y); ctx.stroke();
-        }
-
-        // Front white posts (main visible frame)
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 7;
-        ctx.lineJoin = 'round';
-        ctx.strokeRect(GX, GY, GW, GH);
-
-        // Goal line at bottom (ground level)
-        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(GX - 30, GY + GH);
-        ctx.lineTo(GX + GW + 30, GY + GH);
-        ctx.stroke();
-
-        // ─── Goalie ───
-        if (phase === 'result') {
-            const lastShot = shots[shots.length - 1];
-            if (lastShot) {
-                const gx = GX + lastShot.goalieX - GOALIE_W / 2;
-                const gy = GY + GH - GOALIE_H;
-                // Body
-                const goalieGrad = ctx.createLinearGradient(gx, gy, gx + GOALIE_W, gy + GOALIE_H);
-                goalieGrad.addColorStop(0, '#7c3aed');
-                goalieGrad.addColorStop(1, '#4c1d95');
-                ctx.fillStyle = goalieGrad;
-                ctx.beginPath();
-                ctx.roundRect(gx, gy, GOALIE_W, GOALIE_H, 8);
-                ctx.fill();
-                // Gloves
-                ctx.fillStyle = '#fef3c7';
-                ctx.beginPath(); ctx.arc(gx - 8, gy + 30, 12, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(gx + GOALIE_W + 8, gy + 30, 12, 0, Math.PI * 2); ctx.fill();
-                // Head
-                ctx.fillStyle = '#fcd34d';
-                ctx.beginPath(); ctx.arc(gx + GOALIE_W / 2, gy - 18, 20, 0, Math.PI * 2); ctx.fill();
-                // Label
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 11px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('AI', gx + GOALIE_W / 2, gy + GOALIE_H / 2 + 5);
+                const gStartX = GX + GW / 2 - GOALIE_W / 2;
+                const gStartY = GY + GH - GOALIE_H;
+                s.goalieX = gStartX + (s.goalieTargetX - gStartX) * easeOut;
+                s.goalieY = gStartY + (s.goalieTargetY - gStartY) * easeOut;
+            } else if (s.phase === 'idle' || s.phase === 'aiming') {
+                const pace = Math.sin(timestamp * 0.003) * 40;
+                s.goalieX = GX + GW / 2 - GOALIE_W / 2 + pace;
+                s.goalieY = GY + GH - GOALIE_H;
+                s.ballX = BALL_START_X;
+                s.ballY = BALL_START_Y;
+                s.ballScale = 1;
             }
-        }
 
-        // ─── Aim crosshair ───
-        if (phase === 'aim' && isHovering) {
-            const ax = GX + aimX;
-            const ay = GY + aimY;
-            ctx.strokeStyle = '#a78bfa';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath(); ctx.arc(ax, ay, 20, 0, Math.PI * 2); ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.strokeStyle = '#c4b5fd';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.moveTo(ax - 30, ay); ctx.lineTo(ax + 30, ay); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(ax, ay - 30); ctx.lineTo(ax, ay + 30); ctx.stroke();
-        }
+            // ─── Draw Background ───
+            const grassGrad = ctx.createLinearGradient(0, 0, 0, CH);
+            grassGrad.addColorStop(0, '#0c4a0c');
+            grassGrad.addColorStop(1, '#082b08');
+            ctx.fillStyle = grassGrad;
+            ctx.fillRect(0, 0, CW, CH);
+            for (let i = 0; i < CW; i += 40) {
+                ctx.fillStyle = i % 80 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent';
+                ctx.fillRect(i, 0, 40, CH);
+            }
 
-        // ─── Ball ───
-        // Always show ball near bottom center
-        const ballX = CW / 2;
-        const ballY = CH - 45;
-        const ballGrad = ctx.createRadialGradient(ballX - 4, ballY - 4, 2, ballX, ballY, BALL_R);
-        ballGrad.addColorStop(0, '#ffffff');
-        ballGrad.addColorStop(1, '#aaaaaa');
-        ctx.fillStyle = ballGrad;
-        ctx.beginPath(); ctx.arc(ballX, ballY, BALL_R, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#555';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+            // ─── Goal Posts ───
+            const postDepth = 35;
+            ctx.fillStyle = 'rgba(200,200,200,0.4)';
+            ctx.fillRect(GX + postDepth, GY + postDepth, GW - postDepth * 2, 6);
+            ctx.fillRect(GX + postDepth, GY + postDepth, 6, GH - postDepth);
+            ctx.fillRect(GX + GW - postDepth - 6, GY + postDepth, 6, GH - postDepth);
 
-        // If shot was taken, show ball in goal
-        if (phase === 'result') {
-            const lastShot = shots[shots.length - 1];
-            if (lastShot) {
-                ctx.fillStyle = lastShot.scored ? '#4ade80' : '#f87171';
-                ctx.beginPath();
-                ctx.arc(GX + lastShot.aimX, GY + lastShot.aimY, BALL_R + 2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = lastShot.scored ? '#166534' : '#991b1b';
+            ctx.strokeStyle = 'rgba(200,200,200,0.5)';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(GX, GY); ctx.lineTo(GX + postDepth, GY + postDepth); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(GX + GW, GY); ctx.lineTo(GX + GW - postDepth, GY + postDepth); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(GX, GY + GH); ctx.lineTo(GX + postDepth, GY + GH); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(GX + GW, GY + GH); ctx.lineTo(GX + GW - postDepth, GY + GH); ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            for (let x = GX + postDepth; x <= GX + GW - postDepth; x += 30) {
+                ctx.beginPath(); ctx.moveTo(x, GY + postDepth); ctx.lineTo(x, GY + GH); ctx.stroke();
+            }
+            for (let y = GY + postDepth; y <= GY + GH; y += 30) {
+                ctx.beginPath(); ctx.moveTo(GX + postDepth, y); ctx.lineTo(GX + GW - postDepth, y); ctx.stroke();
+            }
+
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 7;
+            ctx.lineJoin = 'round';
+            ctx.strokeRect(GX, GY, GW, GH);
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(GX - 30, GY + GH); ctx.lineTo(GX + GW + 30, GY + GH); ctx.stroke();
+
+            // ─── Goalie ───
+            const gx = s.goalieX;
+            const gy = s.goalieY;
+            const goalieGrad = ctx.createLinearGradient(gx, gy, gx + GOALIE_W, gy + GOALIE_H);
+            goalieGrad.addColorStop(0, '#7c3aed');
+            goalieGrad.addColorStop(1, '#4c1d95');
+            ctx.fillStyle = goalieGrad;
+            ctx.beginPath();
+            ctx.roundRect(gx, gy, GOALIE_W, GOALIE_H, 8);
+            ctx.fill();
+
+            const isDiving = s.phase === 'shooting' && Math.abs(s.goalieTargetX - (GX + GW / 2 - GOALIE_W / 2)) > 20;
+            ctx.fillStyle = '#fef3c7'; 
+            if (isDiving) {
+                ctx.beginPath(); ctx.arc(gx - 10, gy + 15, 12, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(gx + GOALIE_W + 10, gy + 15, 12, 0, Math.PI * 2); ctx.fill();
+            } else {
+                ctx.beginPath(); ctx.arc(gx - 8, gy + 40, 12, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(gx + GOALIE_W + 8, gy + 40, 12, 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.fillStyle = '#fcd34d';
+            ctx.beginPath(); ctx.arc(gx + GOALIE_W / 2, gy - 20, 22, 0, Math.PI * 2); ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('AI', gx + GOALIE_W / 2, gy + GOALIE_H / 2 + 5);
+
+            // ─── Aiming indicator ───
+            if (s.phase === 'aiming') {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
                 ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(BALL_START_X, BALL_START_Y);
+                ctx.lineTo(s.aimX, s.aimY);
                 ctx.stroke();
+                
+                ctx.setLineDash([]);
+                ctx.strokeStyle = '#a78bfa';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(s.aimX, s.aimY, 15, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(s.aimX - 20, s.aimY); ctx.lineTo(s.aimX + 20, s.aimY); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(s.aimX, s.aimY - 20); ctx.lineTo(s.aimX, s.aimY + 20); ctx.stroke();
             }
-        }
 
-        // ─── Score bar ───
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.beginPath();
-        ctx.roundRect(CW / 2 - 80, CH - 28, 160, 22, 6);
-        ctx.fill();
-        ctx.fillStyle = '#e2e8f0';
-        ctx.font = 'bold 13px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`YOU  ${score.player}  —  ${score.ai}  AI`, CW / 2, CH - 12);
-    }, [phase, aimX, aimY, shots, score, isHovering]);
+            // ─── Ball ───
+            const bR = BALL_R * s.ballScale;
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.beginPath(); ctx.ellipse(s.ballX, s.ballY + bR + 4*s.ballScale, bR*1.2, bR*0.4, 0, 0, Math.PI*2); ctx.fill();
+            
+            const ballGrad = ctx.createRadialGradient(s.ballX - bR*0.3, s.ballY - bR*0.3, bR*0.2, s.ballX, s.ballY, bR);
+            ballGrad.addColorStop(0, '#ffffff');
+            ballGrad.addColorStop(1, '#aaaaaa');
+            ctx.fillStyle = ballGrad;
+            ctx.beginPath(); ctx.arc(s.ballX, s.ballY, bR, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 1 * s.ballScale;
+            ctx.stroke();
 
-    useEffect(() => { draw(); }, [draw]);
+            ctx.fillStyle = '#333';
+            ctx.beginPath(); ctx.arc(s.ballX, s.ballY, bR * 0.4, 0, Math.PI * 2); ctx.fill();
 
-    const getCanvasAim = (e: React.MouseEvent<HTMLCanvasElement>) => {
+            animId = requestAnimationFrame(draw);
+        };
+        animId = requestAnimationFrame(draw);
+        return () => cancelAnimationFrame(animId);
+    }, []);
+
+    const getPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return null;
         const scaleX = CW / rect.width;
         const scaleY = CH / rect.height;
-        const cx = (e.clientX - rect.left) * scaleX;
-        const cy = (e.clientY - rect.top) * scaleY;
-        // Only allow aiming inside goal
-        const ax = Math.max(10, Math.min(GW - 10, cx - GX));
-        const ay = Math.max(10, Math.min(GH - 10, cy - GY));
-        const inside = cx >= GX && cx <= GX + GW && cy >= GY && cy <= GY + GH;
-        return { ax, ay, inside };
+        return { cx: (e.clientX - rect.left) * scaleX, cy: (e.clientY - rect.top) * scaleY };
+    }
+
+    const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        const s = state.current;
+        if (s.phase !== 'idle') return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const pos = getPos(e);
+        if (pos) {
+            s.phase = 'aiming';
+            s.aimX = Math.max(GX, Math.min(GX + GW, pos.cx));
+            s.aimY = Math.max(GY, Math.min(GY + GH, pos.cy));
+            setPhase('aiming');
+        }
     };
 
-    const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (phase !== 'aim') return;
-        const pos = getCanvasAim(e);
-        if (!pos) return;
-        setIsHovering(pos.inside);
-        if (pos.inside) { setAimX(pos.ax); setAimY(pos.ay); }
+    const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        const s = state.current;
+        if (s.phase !== 'aiming') return;
+        const pos = getPos(e);
+        if (pos) {
+            s.aimX = Math.max(GX - 40, Math.min(GX + GW + 40, pos.cx));
+            s.aimY = Math.max(GY - 40, Math.min(GY + GH + 40, pos.cy));
+        }
     };
 
-    const handleShoot = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (phase !== 'aim') return;
-        const pos = getCanvasAim(e);
-        if (!pos?.inside) return;
+    const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        const s = state.current;
+        if (s.phase !== 'aiming') return;
+        
+        s.phase = 'shooting';
+        setPhase('shooting');
+        s.animStartTime = performance.now();
+        s.targetX = s.aimX;
+        s.targetY = s.aimY;
 
-        const goalieX = Math.random() * (GW - GOALIE_W) + GOALIE_W / 2;
-        const scored = Math.abs(aimX - goalieX) > GOALIE_W / 2 + BALL_R + 5;
-        const shot: Shot = { aimX, aimY, goalieX, scored };
+        const isLeft = s.targetX < GX + GW / 2;
+        const aiGuessesRight = Math.random() > 0.4; // 60% chance to read the direction
+        
+        let aiTargetX = GX + GW / 2; 
+        if (aiGuessesRight) {
+            aiTargetX = s.targetX - GOALIE_W/2 + (Math.random()-0.5)*40;
+        } else {
+            aiTargetX = GX + GW / 2 + (isLeft ? 1 : -1) * (100 + Math.random()*150);
+        }
+        aiTargetX = Math.max(GX, Math.min(GX + GW - GOALIE_W, aiTargetX));
 
-        const newRound = round + 1;
-        const newPlayerScore = scored ? score.player + 1 : score.player;
-        const newAIScore = !scored ? score.ai + 1 : score.ai;
+        let aiTargetY = GY + GH - GOALIE_H; 
+        if (aiGuessesRight && s.targetY < GY + GH - 40) {
+            aiTargetY = s.targetY - GOALIE_H/2 + (Math.random()-0.5)*30;
+        }
+        s.goalieTargetX = aiTargetX;
+        s.goalieTargetY = Math.max(GY, Math.min(GY + GH - GOALIE_H, aiTargetY));
 
-        setShots(prev => [...prev, shot]);
-        setPhase('result');
-        setMessage(scored ? '⚽ GOAL! Great shot!' : '🧤 SAVED! The AI keeper got it.');
+        const insideGoal = s.targetX > GX + 10 && s.targetX < GX + GW - 10 && s.targetY > GY + 10 && s.targetY < GY + GH - 10;
+        
+        const gcX = s.goalieTargetX + GOALIE_W/2;
+        const gcY = s.goalieTargetY + GOALIE_H/2;
+        const dist = Math.hypot(s.targetX - gcX, s.targetY - gcY);
 
-        if (scored) setScore(prev => ({ ...prev, player: prev.player + 1 }));
-        else setScore(prev => ({ ...prev, ai: prev.ai + 1 }));
-
-        setRound(newRound);
+        const saved = dist < 75; // Dive reach
+        const scored = insideGoal && !saved;
+        s.scored = scored;
 
         setTimeout(() => {
-            if (newRound >= TOTAL_ROUNDS) {
-                setPhase('done');
-                if (newPlayerScore > newAIScore) setMessage('🏆 You win the shootout!');
-                else if (newPlayerScore < newAIScore) setMessage('😔 AI wins the shootout!');
-                else setMessage("🤝 It's a draw!");
-            } else {
-                setPhase('aim');
-                setMessage(`Round ${newRound + 1}/${TOTAL_ROUNDS} — Aim and shoot!`);
-            }
-        }, 1400);
+            s.phase = 'result';
+            setPhase('result');
+            
+            setMessage(scored ? '⚽ GOAL! Unstoppable shot!' : (!insideGoal ? '❌ MISSED THE GOAL!' : '🧤 SAVED! Great dive by AI!'));
+            
+            const newRnd = round + 1;
+            setScore(prev => ({ 
+                player: scored ? prev.player + 1 : prev.player,
+                ai: !scored ? prev.ai + 1 : prev.ai
+            }));
+            setRound(newRnd);
+
+            setTimeout(() => {
+                if (newRnd >= TOTAL_ROUNDS) {
+                    s.phase = 'done';
+                    setPhase('done');
+                } else {
+                    s.phase = 'idle';
+                    setPhase('idle');
+                    setMessage(`Round ${newRnd + 1}/${TOTAL_ROUNDS} — Drag from ball to aim!`);
+                }
+            }, 1800);
+        }, 550);
     };
 
     const resetGame = () => {
         setScore({ player: 0, ai: 0 });
         setRound(0);
-        setPhase('aim');
-        setShots([]);
-        setIsHovering(false);
-        setMessage('Move mouse into the goal — click to shoot!');
+        setPhase('idle');
+        state.current.phase = 'idle';
+        setMessage('Drag from the ball to aim, then release to shoot!');
     };
 
     return (
-        <div className="w-full">
+        <div className="w-full relative">
             <canvas
                 ref={canvasRef}
                 width={CW}
                 height={CH}
-                className="w-full rounded-lg border border-white/10 cursor-crosshair block"
-                onMouseMove={handleMouseMove}
-                onMouseLeave={() => setIsHovering(false)}
-                onClick={handleShoot}
+                className="w-full rounded-lg border border-white/10 cursor-crosshair block touch-none shadow-xl"
+                style={{ touchAction: 'none' }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
             />
-            <div className="flex items-center justify-between mt-3">
-                <p className="text-xs font-mono text-muted">{message}</p>
-                <span className="text-xs font-mono text-white/30">
+            
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 px-5 py-2 rounded-full text-white font-mono text-sm tracking-wider shadow border border-white/10 z-10 backdrop-blur-sm">
+                YOU <span className={score.player > score.ai ? 'text-green-400' : ''}>{score.player}</span> 
+                {' — '}
+                <span className={score.ai > score.player ? 'text-red-400' : ''}>{score.ai}</span> AI
+            </div>
+
+            <div className="flex items-center justify-between mt-4 px-1">
+                <p className="text-xs font-mono text-accent">{message}</p>
+                <span className="text-xs font-mono text-white/30 whitespace-nowrap ml-4">
                     Round {Math.min(round + 1, TOTAL_ROUNDS)}/{TOTAL_ROUNDS}
                 </span>
             </div>
             {phase === 'done' && (
-                <button onClick={resetGame} className="btn-accent mt-3 w-full text-xs">
-                    Play Again
+                <button onClick={resetGame} className="w-full bg-accent text-white hover:bg-accent/80 transition-colors rounded py-3 mt-4 font-bold tracking-wider text-sm">
+                    {score.player > score.ai ? '🏆 YOU WON! PLAY AGAIN' : (score.ai > score.player ? '😩 AI WON! TRY AGAIN' : '🤝 DRAW! PLAY AGAIN')}
                 </button>
             )}
         </div>
