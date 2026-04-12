@@ -49,11 +49,62 @@ const PenaltyGame = () => {
         curveFactor: 0,
         goalieTargetX: 0,
         goalieTargetY: 0,
-        animStartTime: 0,
         scored: false,
+        saved: false,
+        tooMuchPower: false,
         ballRotation: 0,
-        crowd: getCrowdData()
+        crowd: getCrowdData(),
+        
+        // Custom Ticking Loop
+        simTime: 0,
+        lastRealTime: 0,
+        animStartSimTime: 0,
+        shootRealTimeStart: 0,
+        resultTriggered: false
     });
+
+    const onShotComplete = useRef((scored: boolean, tooMuchPower: boolean, saved: boolean, curveFactor: number) => {});
+
+    useEffect(() => {
+        onShotComplete.current = (scored, tooMuchPower, saved, curveFactor) => {
+            setPhase('result');
+            
+            let resultMsg = '';
+            if (scored) {
+                if (Math.abs(curveFactor) > 40) resultMsg = '🔥 WHAT A BEND! Perfect Curve!';
+                else if (tooMuchPower) resultMsg = '🔥 SCREAMER! Absolute Top Bins!';
+                else resultMsg = '⚽ GOAL! Clean Strike!';
+            } else if (saved) {
+                resultMsg = '🧤 SAVED! Golden gloves!';
+            } else {
+                if (tooMuchPower) resultMsg = '🚀 OVER THE BAR! Too much power!';
+                else resultMsg = '❌ WIDE! Missed the target.';
+            }
+
+            setMessage(resultMsg);
+            
+            setScore(prev => ({ 
+                player: scored ? prev.player + 1 : prev.player,
+                ai: !scored ? prev.ai + 1 : prev.ai
+            }));
+            
+            setRound(prev => {
+                const newRnd = prev + 1;
+                setTimeout(() => {
+                    if (newRnd >= TOTAL_ROUNDS) {
+                        setPhase('done');
+                        state.current.phase = 'done';
+                    } else {
+                        setPhase('idle');
+                        state.current.phase = 'idle';
+                        state.current.swipePath = [];
+                        setMessage(`Round ${newRnd + 1}/${TOTAL_ROUNDS} — Swipe & curl to score!`);
+                    }
+                }, 2500);
+                return newRnd;
+            });
+        };
+    }, []);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -64,29 +115,35 @@ const PenaltyGame = () => {
 
         const draw = (timestamp: number) => {
             const s = state.current;
+            if (s.lastRealTime === 0) s.lastRealTime = timestamp;
+            const delta = timestamp - s.lastRealTime;
+            s.lastRealTime = timestamp;
+
+            const isShooting = s.phase === 'shooting';
+            // VITAL MULTIPLIER: 0.25x speed makes it dramatic cinematic slow-motion!
+            const timeScale = isShooting ? 0.3 : 1.0; 
+            s.simTime += delta * timeScale;
+            
+            const simTime = s.simTime;
 
             // ─── Animations & Physics ───
             if (s.phase === 'shooting') {
-                const elapsed = timestamp - s.animStartTime;
-                const duration = Math.max(700, 1500 - s.power * 2); // Noticeably slower, realistic speed
+                const elapsed = simTime - s.animStartSimTime;
+                const duration = Math.max(600, 1000 - s.power * 1.5);
                 const progress = Math.min(elapsed / duration, 1);
                 const easeOut = 1 - Math.pow(1 - progress, 2);
                 
-                // Add horizontal curve bend
                 const horizontalCurve = Math.sin(progress * Math.PI) * s.curveFactor;
                 s.ballX = BALL_START_X + (s.targetX - BALL_START_X) * easeOut + horizontalCurve;
                 
-                // Add vertical loft arc
                 const arcHeight = Math.min(120, s.power * 0.4);
                 const arc = Math.sin(progress * Math.PI) * arcHeight;
                 s.ballY = BALL_START_Y + (s.targetY - BALL_START_Y) * easeOut - arc;
                 
-                s.ballScale = 1 - (0.28 * easeOut); // Ball doesn't shrink as much, so it looks realistic and visible
+                s.ballScale = 1 - (0.28 * easeOut);
                 
-                // Curve factor affects visual spin more prominently
                 s.ballRotation += (s.power * 0.005) + (s.curveFactor * 0.002); 
 
-                // Goalie diving leaps based on progress
                 const leapDuration = duration * 0.8;
                 const diveProgress = Math.min((elapsed - 50) / leapDuration, 1);
                 if (diveProgress > 0) {
@@ -96,8 +153,15 @@ const PenaltyGame = () => {
                     s.goalieX = gStartX + (s.goalieTargetX - gStartX) * diveEase;
                     s.goalieY = gStartY + (s.goalieTargetY - gStartY) * diveEase;
                 }
+
+                if (progress >= 1 && !s.resultTriggered) {
+                    s.resultTriggered = true;
+                    s.phase = 'result';
+                    s.animStartSimTime = simTime;
+                    onShotComplete.current(s.scored, s.tooMuchPower, s.saved, s.curveFactor);
+                }
             } else if (s.phase === 'idle' || s.phase === 'aiming') {
-                const pace = Math.sin(timestamp * 0.002) * 50;
+                const pace = Math.sin(simTime * 0.002) * 50;
                 s.goalieX = GX + GW / 2 + pace;
                 s.goalieY = GY + GH; 
                 s.ballX = BALL_START_X;
@@ -114,7 +178,7 @@ const PenaltyGame = () => {
             s.crowd.forEach(p => {
                 const jumpMult = isExcited ? 10 : 3;
                 const jumpOffset = isExcited ? 0.01 : 0;
-                const jumpY = Math.abs(Math.sin(timestamp * (p.speed + jumpOffset) * (isExcited ? 3 : 1) + p.offset)) * jumpMult;
+                const jumpY = Math.abs(Math.sin(simTime * (p.speed + jumpOffset) * (isExcited ? 3 : 1) + p.offset)) * jumpMult;
                 ctx.fillStyle = p.c;
                 ctx.beginPath();
                 ctx.arc(p.x, p.y - jumpY, p.size, 0, Math.PI * 2);
@@ -186,7 +250,7 @@ const PenaltyGame = () => {
             // ─── Goal Keeper (India Team + Boots) ───
             const gx = s.goalieX;
             const gy = s.goalieY; 
-            const isDive = s.phase === 'shooting' && Math.abs(s.goalieTargetX - (GX + GW / 2)) > 20;
+            const isDive = (s.phase === 'shooting' || s.phase === 'result') && Math.abs(s.goalieTargetX - (GX + GW / 2)) > 20;
 
             ctx.save();
             ctx.translate(gx, gy);
@@ -195,24 +259,21 @@ const PenaltyGame = () => {
             const flagOrange = '#FF9933';
             const flagWhite = '#FFFFFF';
             const flagGreen = '#138808';
-            const neonBoots = '#fbbf24'; // Golden/Neon yellow boots looks pro
+            const neonBoots = '#fbbf24'; 
 
             if (isDive) {
                 const divingRight = s.goalieTargetX > GX + GW / 2;
                 const angle = divingRight ? 1.2 : -1.2; 
-                
                 const airHeight = Math.max(-50, (s.goalieTargetY - gy));
                 ctx.translate(0, airHeight);
                 ctx.rotate(angle);
                 
-                // Torso
                 ctx.fillStyle = indiaBlue; 
                 ctx.fillRect(-15, -60, 30, 45);
                 ctx.fillStyle = flagOrange; ctx.fillRect(-15, -45, 30, 4);
                 ctx.fillStyle = flagWhite;  ctx.fillRect(-15, -41, 30, 4);
                 ctx.fillStyle = flagGreen;  ctx.fillRect(-15, -37, 30, 4);
                 
-                // Arms
                 ctx.lineWidth = 8;
                 ctx.strokeStyle = '#fca5a5'; 
                 ctx.beginPath(); ctx.moveTo(-10, -55); ctx.lineTo(-10, -90); ctx.stroke();
@@ -224,7 +285,6 @@ const PenaltyGame = () => {
                 ctx.beginPath(); ctx.arc(-10, -90, 7, 0, Math.PI*2); ctx.fill();
                 ctx.beginPath(); ctx.arc(10, -90, 7, 0, Math.PI*2); ctx.fill();
                 
-                // Legs
                 ctx.strokeStyle = indiaBlue; 
                 ctx.lineWidth = 10;
                 ctx.beginPath(); ctx.moveTo(-8, -15); ctx.lineTo(-15, 0); ctx.stroke();
@@ -237,22 +297,18 @@ const PenaltyGame = () => {
                 ctx.beginPath(); ctx.moveTo(-15, 12); ctx.lineTo(-15, 20); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(15, 17); ctx.lineTo(15, 25); ctx.stroke();
                 
-                // Boots
                 ctx.fillStyle = neonBoots;
                 ctx.beginPath(); ctx.roundRect(-20, 20, 10, 8, 3); ctx.fill();
                 ctx.beginPath(); ctx.roundRect(10, 25, 10, 8, 3); ctx.fill();
 
-                // Head
                 ctx.fillStyle = '#fca5a5'; ctx.beginPath(); ctx.arc(0, -75, 14, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = '#111827'; ctx.beginPath(); ctx.arc(0, -79, 14, 0, Math.PI); ctx.fill();
-                
             } else {
-                const bounce = Math.abs(Math.sin(timestamp * 0.005)) * 5;
+                const bounce = Math.abs(Math.sin(simTime * 0.005)) * 5;
                 ctx.translate(0, -bounce);
                 
                 ctx.fillStyle = indiaBlue; 
                 ctx.fillRect(-16, -65, 32, 40);
-                
                 ctx.fillStyle = flagOrange; ctx.fillRect(-16, -48, 32, 4);
                 ctx.fillStyle = flagWhite;  ctx.fillRect(-16, -44, 32, 4);
                 ctx.fillStyle = flagGreen;  ctx.fillRect(-16, -40, 32, 4);
@@ -262,7 +318,6 @@ const PenaltyGame = () => {
                 ctx.strokeStyle = '#fca5a5'; 
                 ctx.beginPath(); ctx.moveTo(-16, -60); ctx.lineTo(-30, -45); ctx.lineTo(-25, -20); ctx.stroke(); 
                 ctx.beginPath(); ctx.moveTo(16, -60); ctx.lineTo(30, -45); ctx.lineTo(25, -20); ctx.stroke(); 
-                
                 ctx.strokeStyle = indiaBlue; 
                 ctx.beginPath(); ctx.moveTo(-16, -60); ctx.lineTo(-24, -50); ctx.stroke(); 
                 ctx.beginPath(); ctx.moveTo(16, -60); ctx.lineTo(24, -50); ctx.stroke(); 
@@ -280,7 +335,6 @@ const PenaltyGame = () => {
                 ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(-14, 20); ctx.stroke(); 
                 ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(14, 20); ctx.stroke(); 
 
-                // Boots
                 ctx.fillStyle = neonBoots;
                 ctx.beginPath(); ctx.roundRect(-19, 20, 10, 8, 3); ctx.fill();
                 ctx.beginPath(); ctx.roundRect(9, 20, 10, 8, 3); ctx.fill();
@@ -297,17 +351,15 @@ const PenaltyGame = () => {
 
             // ─── Swipe Trail (Aim) ───
             if (s.phase === 'aiming' && s.swipePath.length > 0) {
-                // Determine color based on swipe length (power)
                 const start = s.swipePath[0];
                 const end = s.swipePath[s.swipePath.length - 1];
                 const dist = Math.hypot(end.x - start.x, end.y - start.y);
-                const powerRatio = Math.min(dist / 300, 1);
+                const powerRatio = Math.min((dist * 1.2) / 350, 1);
 
                 let pColor = '#4ade80';
                 if (powerRatio > 0.6) pColor = '#facc15';
                 if (powerRatio > 0.9) pColor = '#ef4444';
 
-                // Realtime Power Meter UI
                 const meterWidth = 150;
                 const meterX = 20;
                 const meterY = CH - 40;
@@ -328,7 +380,6 @@ const PenaltyGame = () => {
                 ctx.textAlign = 'left';
                 ctx.fillText('SHOT POWER', meterX, meterY - 6);
 
-                // Draw the actual curved swipe trail visually representing the bend
                 ctx.strokeStyle = pColor;
                 ctx.lineWidth = 5;
                 ctx.lineCap = 'round';
@@ -343,14 +394,11 @@ const PenaltyGame = () => {
                     else ctx.lineTo(pt.x, pt.y);
                 }
                 ctx.stroke();
-                
-                // Clear shadow so ball isn't glowing
                 ctx.shadowBlur = 0;
             }
 
             // ─── Ball ───
             const bR = BALL_R * s.ballScale;
-            // Draw Shadow at ground level directly underneath flight path
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.beginPath(); ctx.ellipse(s.ballX, BALL_START_Y + 5, bR*1.2, bR*0.4, 0, 0, Math.PI*2); ctx.fill();
             
@@ -393,6 +441,24 @@ const PenaltyGame = () => {
             ctx.beginPath(); ctx.arc(0, 0, bR, 0, Math.PI * 2); ctx.stroke();
             ctx.restore();
 
+            // ─── Cinematic Bullet-Time effects ───
+            if (isShooting || s.phase === 'result') {
+                const shootElapsedReal = timestamp - s.shootRealTimeStart;
+                const barHeight = Math.min(50, shootElapsedReal * 0.15); // slide in 50px black bars
+                if (barHeight > 0) {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, CW, barHeight);
+                    ctx.fillRect(0, CH - barHeight, CW, barHeight);
+                }
+                
+                if (isShooting) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(0.8, shootElapsedReal * 0.002)})`;
+                    ctx.font = 'italic bold 22px sans-serif';
+                    ctx.textAlign = 'right';
+                    ctx.fillText('BULLET TIME', CW - 20, CH - barHeight - 15);
+                }
+            }
+
             animId = requestAnimationFrame(draw);
         };
         animId = requestAnimationFrame(draw);
@@ -414,7 +480,6 @@ const PenaltyGame = () => {
         const pos = getPos(e);
         if (!pos) return;
         
-        // Accept input near the ball
         const dist = Math.hypot(pos.cx - s.ballX, pos.cy - s.ballY);
         if (dist > 60) return;
 
@@ -430,8 +495,7 @@ const PenaltyGame = () => {
         if (s.phase !== 'aiming') return;
         const pos = getPos(e);
         if (pos) {
-            // Keep adding to path to capture the curve shape
-            if (s.swipePath.length < 50) { // Limit resolution
+            if (s.swipePath.length < 50) {
                 s.swipePath.push({x: pos.cx, y: pos.cy});
             }
         }
@@ -452,10 +516,9 @@ const PenaltyGame = () => {
         const end = s.swipePath[s.swipePath.length - 1];
         
         const dx = end.x - start.x;
-        const dy = end.y - start.y; // Should be negative for forward swipe
+        const dy = end.y - start.y; 
         
         if (dy > -10) {
-            // Must swipe upwards/forward to shoot
             s.phase = 'idle';
             setPhase('idle');
             return;
@@ -470,7 +533,6 @@ const PenaltyGame = () => {
             return;
         }
 
-        // Project the swipe forward if it's too short so the user doesn't have to literally reach the net!
         let simTargetX = end.x;
         let simTargetY = end.y;
         if (end.y > GY + GH + 20) {
@@ -482,18 +544,12 @@ const PenaltyGame = () => {
         s.targetX = simTargetX;
         s.targetY = simTargetY;
 
-        // Simple Curve Factor: take middle of the swipe path and see how far it deviates horizontally from straight line
         const midPt = s.swipePath[Math.floor(s.swipePath.length / 2)];
         const straightMidX = (start.x + end.x) / 2;
-        // Curve factor physically moves ball left/right during flight mid-point
         s.curveFactor = (midPt.x - straightMidX) * 2.5; 
 
-        s.phase = 'shooting';
-        setPhase('shooting');
-        s.animStartTime = performance.now();
-
-        const tooMuchPower = s.power > 250;
-        if (tooMuchPower) {
+        s.tooMuchPower = s.power > 300;
+        if (s.tooMuchPower) {
             s.targetY = s.targetY - Math.random() * 80;
             s.targetX = s.targetX + (Math.random() - 0.5) * 80;
         }
@@ -517,52 +573,18 @@ const PenaltyGame = () => {
         s.goalieTargetY = Math.max(GY - 20, Math.min(GY + GH, aiTargetY));
 
         const insideGoal = s.targetX > GX + BALL_R && s.targetX < GX + GW - BALL_R && s.targetY > GY + BALL_R && s.targetY < GY + GH;
-        
         const distToKeeper = Math.hypot(s.targetX - s.goalieTargetX, s.targetY - s.goalieTargetY);
-        const savedRadius = s.power < 80 ? 120 : (tooMuchPower ? 50 : 80); 
-        const saved = distToKeeper < savedRadius; 
+        const savedRadius = s.power < 80 ? 120 : (s.tooMuchPower ? 50 : 80); 
         
-        const scored = insideGoal && !saved;
-        s.scored = scored;
+        s.saved = distToKeeper < savedRadius; 
+        s.scored = insideGoal && !s.saved;
 
-        const duration = Math.max(700, 1500 - s.power * 2);
-        setTimeout(() => {
-            s.phase = 'result';
-            setPhase('result');
-            
-            let resultMsg = '';
-            if (scored) {
-                if (Math.abs(s.curveFactor) > 40) resultMsg = '🔥 WHAT A BEND! Perfect Curve!';
-                else if (tooMuchPower) resultMsg = '🔥 SCREAMER! Absolute Top Bins!';
-                else resultMsg = '⚽ GOAL! Clean Strike!';
-            } else if (saved) {
-                resultMsg = '🧤 SAVED! Golden gloves!';
-            } else {
-                if (tooMuchPower) resultMsg = '🚀 OVER THE BAR! Too much power!';
-                else resultMsg = '❌ WIDE! Missed the target.';
-            }
-
-            setMessage(resultMsg);
-            
-            const newRnd = round + 1;
-            setScore(prev => ({ 
-                player: scored ? prev.player + 1 : prev.player,
-                ai: !scored ? prev.ai + 1 : prev.ai
-            }));
-            setRound(newRnd);
-
-            setTimeout(() => {
-                if (newRnd >= TOTAL_ROUNDS) {
-                    s.phase = 'done';
-                    setPhase('done');
-                } else {
-                    s.phase = 'idle';
-                    setPhase('idle');
-                    s.swipePath = [];
-                    setMessage(`Round ${newRnd + 1}/${TOTAL_ROUNDS} — Swipe & curl to score!`);
-                }
-            }, 2500);
-        }, duration + 50); 
+        s.phase = 'shooting';
+        setPhase('shooting');
+        
+        s.animStartSimTime = s.simTime;
+        s.shootRealTimeStart = performance.now();
+        s.resultTriggered = false;
     };
 
     const resetGame = () => {
@@ -580,7 +602,7 @@ const PenaltyGame = () => {
                 ref={canvasRef}
                 width={CW}
                 height={CH}
-                className="w-full rounded-lg border border-white/10 cursor-crosshair block touch-none shadow-xl"
+                className="w-full rounded-lg border border-white/10 cursor-crosshair block touch-none shadow-2xl relative z-10"
                 style={{ touchAction: 'none' }}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
@@ -588,7 +610,7 @@ const PenaltyGame = () => {
                 onPointerCancel={handlePointerUp}
             />
             
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 px-5 py-2 rounded-full text-white font-mono text-sm tracking-wider shadow border border-white/10 z-10 backdrop-blur-sm">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 px-5 py-2 rounded-full text-white font-mono text-sm tracking-wider shadow border border-white/10 z-20 backdrop-blur-sm">
                 YOU <span className={score.player > score.ai ? 'text-green-400 font-bold' : ''}>{score.player}</span> 
                 {' — '}
                 <span className={score.ai > score.player ? 'text-red-400 font-bold' : ''}>{score.ai}</span> AI 
