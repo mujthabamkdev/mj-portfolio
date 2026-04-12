@@ -68,7 +68,7 @@ const PenaltyGame = () => {
             // ─── Animations & Physics ───
             if (s.phase === 'shooting') {
                 const elapsed = timestamp - s.animStartTime;
-                const duration = Math.max(350, 900 - s.power * 1.5);
+                const duration = Math.max(700, 1500 - s.power * 2); // Noticeably slower, realistic speed
                 const progress = Math.min(elapsed / duration, 1);
                 const easeOut = 1 - Math.pow(1 - progress, 2);
                 
@@ -81,10 +81,10 @@ const PenaltyGame = () => {
                 const arc = Math.sin(progress * Math.PI) * arcHeight;
                 s.ballY = BALL_START_Y + (s.targetY - BALL_START_Y) * easeOut - arc;
                 
-                s.ballScale = 1 - (0.45 * easeOut);
+                s.ballScale = 1 - (0.28 * easeOut); // Ball doesn't shrink as much, so it looks realistic and visible
                 
                 // Curve factor affects visual spin more prominently
-                s.ballRotation += (s.power * 0.005) + (s.curveFactor > 0 ? 0.05 : -0.05); 
+                s.ballRotation += (s.power * 0.005) + (s.curveFactor * 0.002); 
 
                 // Goalie diving leaps based on progress
                 const leapDuration = duration * 0.8;
@@ -462,7 +462,7 @@ const PenaltyGame = () => {
         }
 
         const dist = Math.hypot(dx, dy);
-        s.power = Math.min(300, dist * 1.2); 
+        s.power = Math.min(350, dist * 1.2); 
         
         if (s.power < 30) {
             s.phase = 'idle';
@@ -470,27 +470,23 @@ const PenaltyGame = () => {
             return;
         }
 
-        s.targetX = end.x;
-        s.targetY = end.y;
-
-        // Calculate bend/curve factor by finding max deviation from the straight line
-        const A = end.y - start.y;
-        const B = start.x - end.x;
-        const C = end.x * start.y - start.x * end.y;
-        const lineLen = Math.hypot(A, B);
-        
-        let maxDev = 0;
-        if (lineLen > 0) {
-            s.swipePath.forEach(pt => {
-                const deviation = (A * pt.x + B * pt.y + C) / lineLen;
-                if (Math.abs(deviation) > Math.abs(maxDev)) {
-                    maxDev = deviation;
-                }
-            });
+        // Project the swipe forward if it's too short so the user doesn't have to literally reach the net!
+        let simTargetX = end.x;
+        let simTargetY = end.y;
+        if (end.y > GY + GH + 20) {
+            const multiplier = 1.7; 
+            simTargetX = start.x + dx * multiplier;
+            simTargetY = start.y + dy * multiplier;
         }
-        
-        // Emphasize the bend visually
-        s.curveFactor = maxDev * 2.0; 
+
+        s.targetX = simTargetX;
+        s.targetY = simTargetY;
+
+        // Simple Curve Factor: take middle of the swipe path and see how far it deviates horizontally from straight line
+        const midPt = s.swipePath[Math.floor(s.swipePath.length / 2)];
+        const straightMidX = (start.x + end.x) / 2;
+        // Curve factor physically moves ball left/right during flight mid-point
+        s.curveFactor = (midPt.x - straightMidX) * 2.5; 
 
         s.phase = 'shooting';
         setPhase('shooting');
@@ -529,7 +525,7 @@ const PenaltyGame = () => {
         const scored = insideGoal && !saved;
         s.scored = scored;
 
-        const duration = Math.max(350, 900 - s.power * 1.5);
+        const duration = Math.max(700, 1500 - s.power * 2);
         setTimeout(() => {
             s.phase = 'result';
             setPhase('result');
