@@ -107,8 +107,13 @@ function CharacterModel({ contentSide }: CharacterModelProps) {
         if (rLowerArm.current) { rLowerArm.current.rotation.set(0, 0, 0); }
 
         // Update targets when prop changes
-        const newTargetX = contentSide === 'left' ? 0.9 : -0.9;
-        const newHeadY = contentSide === 'left' ? -0.45 : 0.45;
+        const isMobile = state.viewport.width < 2.0;
+        const offset = isMobile ? (state.viewport.width / 2.2) : 0.9;
+        const newTargetX = contentSide === 'left' ? offset : -offset;
+
+        // Less head turn on mobile to make him peek into the frame more clearly
+        const headTurn = isMobile ? 0.6 : 0.45;
+        const newHeadY = contentSide === 'left' ? -headTurn : headTurn;
         targetXRef.current = THREE.MathUtils.lerp(targetXRef.current, newTargetX, delta * 2.5);
         targetHeadYRef.current = THREE.MathUtils.lerp(targetHeadYRef.current, newHeadY, delta * 2.5);
 

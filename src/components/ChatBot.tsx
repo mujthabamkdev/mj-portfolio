@@ -63,56 +63,33 @@ const ChatBot = () => {
         setInput('');
         setIsLoading(true);
 
-        const models = [
-            'deepseek/deepseek-r1:free',
-            'google/gemma-3-27b-it:free',
-            'meta-llama/llama-3.1-8b-instruct:free',
-            'microsoft/phi-3-mini-128k-instruct:free',
-        ];
-
         let replied = false;
-        for (const model of models) {
-            try {
-                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ***API_KEY_REMOVED***',
-                        'HTTP-Referer': window.location.origin,
-                        'X-Title': 'Mujthaba Portfolio',
-                    },
-                    body: JSON.stringify({
-                        model,
-                        messages: [
-                            { role: 'system', content: SYSTEM_PROMPT },
-                            ...messages.map((m) => ({ role: m.role, content: m.content })),
-                            { role: 'user', content: userMessage.content },
-                        ],
-                        max_tokens: 300,
-                        temperature: 0.7,
-                    }),
-                });
+        try {
+            const response = await fetch('https://text.pollinations.ai/openai', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: 'openai',
+                    messages: [
+                        { role: 'system', content: SYSTEM_PROMPT },
+                        ...messages.map((m) => ({ role: m.role, content: m.content })),
+                        { role: 'user', content: userMessage.content },
+                    ],
+                    max_tokens: 300,
+                    temperature: 0.7,
+                }),
+            });
 
-                const data = await response.json();
-                console.log('OpenRouter response:', model, response.status, data);
-
-                if (response.status === 429) {
-                    console.log(`Rate limited on ${model}, trying next...`);
-                    continue;
-                }
-
-                if (!response.ok) continue;
-
-                const reply = data.choices?.[0]?.message?.content;
-                if (reply) {
-                    setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
-                    replied = true;
-                    break;
-                }
-            } catch (err) {
-                console.log(`Error with ${model}:`, err);
-                continue;
+            const data = await response.json();
+            const reply = data.choices?.[0]?.message?.content;
+            if (reply) {
+                setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+                replied = true;
             }
+        } catch (err) {
+            console.log(`Error with Pollinations API:`, err);
         }
 
         if (!replied) {

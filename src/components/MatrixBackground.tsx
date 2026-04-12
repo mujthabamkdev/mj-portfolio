@@ -59,7 +59,8 @@ const MatrixBackground = () => {
         window.addEventListener('resize', resize, { passive: true });
 
         // ─── Matrix columns ───
-        const colW = 22;
+        // Use a wider column width for fewer falling objects
+        const colW = 45;
         const numCols = Math.ceil(window.innerWidth / colW);
         const columns: Column[] = Array.from({ length: numCols }, (_, i) => ({
             x: i * colW,
@@ -79,7 +80,7 @@ const MatrixBackground = () => {
             driftY: (Math.random() - 0.5) * 0.2,
             size: 10 + Math.floor(Math.random() * 4),
         });
-        const codeBlocks: CodeBlock[] = Array.from({ length: 12 }, makeBlock);
+        const codeBlocks: CodeBlock[] = Array.from({ length: 4 }, makeBlock);
 
         // ─── Scan line ───
         let scanY = 0;
