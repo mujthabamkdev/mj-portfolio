@@ -11,8 +11,6 @@ const BALL_START_X = CW / 2;
 const BALL_START_Y = CH - 45;
 const BALL_R = 14;
 
-const GOALIE_W = 80;
-const GOALIE_H = 100;
 const TOTAL_ROUNDS = 5;
 
 type Phase = 'idle' | 'aiming' | 'shooting' | 'result' | 'done';
@@ -63,7 +61,7 @@ const PenaltyGame = () => {
         resultTriggered: false
     });
 
-    const onShotComplete = useRef((scored: boolean, tooMuchPower: boolean, saved: boolean, curveFactor: number) => {});
+    const onShotComplete = useRef((_scored: boolean, _tooMuchPower: boolean, _saved: boolean, _curveFactor: number) => {});
 
     useEffect(() => {
         onShotComplete.current = (scored, tooMuchPower, saved, curveFactor) => {
