@@ -10,6 +10,7 @@ import Contact from './components/Contact';
 import Footer from './components/Footer';
 import ResumeModal from './components/ResumeModal';
 import Loading from './components/Loading';
+import SecurityScan from './components/SecurityScan';
 import { lazy, Suspense } from 'react';
 const Character = lazy(() => import('./components/Character'));
 import CustomCursor from './components/CustomCursor';
@@ -30,6 +31,7 @@ const SECTION_SIDES: Record<string, 'left' | 'right'> = {
 
 function Portfolio() {
   const [isLoading, setIsLoading] = useState(true);
+  const [gatePassed, setGatePassed] = useState(false);
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('hero');
 
@@ -92,7 +94,10 @@ function Portfolio() {
   return (
     <div className="min-h-screen relative bg-black">
       {isLoading && <Loading onComplete={handleLoadingComplete} />}
-      {!isLoading && <CustomCursor />}
+      {!isLoading && !gatePassed && (
+        <SecurityScan onProceed={() => setGatePassed(true)} />
+      )}
+      {!isLoading && !gatePassed && <CustomCursor />}
 
       {/* 3D Character — fixed background layer */}
       {!isLoading && (
