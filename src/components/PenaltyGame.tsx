@@ -61,7 +61,9 @@ const PenaltyGame = () => {
         resultTriggered: false
     });
 
-    const onShotComplete = useRef((_scored: boolean, _tooMuchPower: boolean, _saved: boolean, _curveFactor: number) => {});
+    const onShotComplete = useRef((_scored: boolean, _tooMuchPower: boolean, _saved: boolean, _curveFactor: number) => {
+        void _scored; void _tooMuchPower; void _saved; void _curveFactor;
+    });
 
     useEffect(() => {
         onShotComplete.current = (scored, tooMuchPower, saved, curveFactor) => {
@@ -493,8 +495,9 @@ const PenaltyGame = () => {
         if (s.phase !== 'aiming') return;
         const pos = getPos(e);
         if (pos) {
-            if (s.swipePath.length < 50) {
-                s.swipePath.push({x: pos.cx, y: pos.cy});
+            s.swipePath.push({x: pos.cx, y: pos.cy});
+            if (s.swipePath.length > 300) {
+                s.swipePath.splice(0, s.swipePath.length - 300);
             }
         }
     };

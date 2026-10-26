@@ -84,9 +84,9 @@ const Experience = () => {
                                     </div>
                                     <p className="text-sm text-muted mb-1">
                                         {exp.company}
-                                        {exp.subtitle && <span className="text-white/30"> — {exp.subtitle}</span>}
+                                        {exp.subtitle && <span className="text-white/50"> — {exp.subtitle}</span>}
                                     </p>
-                                    <p className="text-xs text-white/30 mb-4">
+                                    <p className="text-xs text-white/50 mb-4">
                                         {exp.location} · {exp.period}
                                     </p>
                                     <p className="text-sm text-muted leading-relaxed mb-4">
@@ -101,7 +101,7 @@ const Experience = () => {
 
                                 {/* Right: Large Year */}
                                 <div className="md:col-span-5 flex md:justify-end items-start">
-                                    <span className="text-6xl md:text-7xl lg:text-8xl font-black text-white/[0.03] tracking-tight leading-none select-none group-hover:text-white/[0.06] transition-colors duration-500">
+                                    <span className="text-6xl md:text-7xl lg:text-8xl font-black text-white/20 tracking-tight leading-none select-none group-hover:text-white/40 transition-colors duration-500">
                                         {exp.year}
                                     </span>
                                 </div>

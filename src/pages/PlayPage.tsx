@@ -6,7 +6,11 @@ import PenaltyGame from '../components/PenaltyGame';
 const PlayPage = () => {
     useEffect(() => {
         window.scrollTo(0, 0);
+        const previousTitle = document.title;
         document.title = 'Play — Mujthaba\'s Portfolio';
+        return () => {
+            document.title = previousTitle;
+        };
     }, []);
 
     return (

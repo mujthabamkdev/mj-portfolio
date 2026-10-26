@@ -6,7 +6,11 @@ const CustomCursor = () => {
     const pos = useRef({ x: 0, y: 0 });
     const ringPos = useRef({ x: 0, y: 0 });
 
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
     useEffect(() => {
+        if (isMobile) return;
+
         // Hide default cursor
         document.body.style.cursor = 'none';
 
@@ -53,7 +57,7 @@ const CustomCursor = () => {
             document.removeEventListener('mouseout', onMouseOut);
             cancelAnimationFrame(raf);
         };
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Don't show on mobile
     if (typeof window !== 'undefined' && window.innerWidth <= 768) return null;

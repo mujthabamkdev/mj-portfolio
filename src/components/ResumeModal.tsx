@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface ResumeModalProps {
   isOpen: boolean;
@@ -8,9 +8,12 @@ interface ResumeModalProps {
 const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [useFallback, setUseFallback] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
       document.body.style.overflow = 'hidden';
       setIsLoading(true);
       setUseFallback(false);
@@ -19,16 +22,30 @@ const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
         setIsLoading(false);
       }, 500);
 
+      const focusTimer = setTimeout(() => {
+        closeButtonRef.current?.focus();
+      }, 0);
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+
       return () => {
         clearTimeout(loadingTimer);
+        clearTimeout(focusTimer);
+        document.removeEventListener('keydown', handleKeyDown);
         document.body.style.overflow = 'unset';
+        previousFocusRef.current?.focus();
       };
     }
 
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+    document.body.style.overflow = 'unset';
+    return undefined;
+  }, [isOpen, onClose]);
 
   const pdfPath = '/Resume Mujthaba Resume.pdf';
   const pdfUrl = `${pdfPath}#toolbar=1&navpanes=1&scrollbar=1`;
@@ -48,6 +65,7 @@ const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
     <div
       className="fixed inset-0 z-[10000] flex items-center justify-center"
       style={{ animation: 'fadeIn 0.3s ease-in forwards' }}
+      role="presentation"
     >
       {/* Backdrop */}
       <div
@@ -60,10 +78,13 @@ const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
         className="relative bg-dark-50 border border-white/10 rounded-lg shadow-2xl w-full max-w-5xl h-[90vh] m-4 flex flex-col z-10"
         onClick={(e) => e.stopPropagation()}
         style={{ animation: 'scaleIn 0.3s ease-out forwards' }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resume-modal-title"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0 z-20">
-          <h2 className="text-sm font-medium tracking-wider uppercase text-white/70">Resume</h2>
+          <h2 id="resume-modal-title" className="text-sm font-medium tracking-wider uppercase text-white/70">Resume</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={handleOpenInNewTab}
@@ -86,6 +107,7 @@ const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
               </svg>
             </a>
             <button
+              ref={closeButtonRef}
               onClick={onClose}
               className="p-2 hover:bg-white/5 rounded transition-colors"
             >

@@ -18,17 +18,6 @@ const CODE_SNIPPETS = [
     '> AI.init() :: READY',
 ];
 
-const MATRIX_CHARS = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ01アβδΩ∑∫{}[]<>=>01abcdef';
-
-interface Column {
-    x: number;
-    y: number;
-    speed: number;
-    chars: string[];
-    length: number;
-    opacity: number;
-}
-
 interface CodeBlock {
     x: number;
     y: number;
@@ -58,19 +47,6 @@ const MatrixBackground = () => {
         resize();
         window.addEventListener('resize', resize, { passive: true });
 
-        // ─── Matrix columns ───
-        // Use a wider column width for fewer falling objects
-        const colW = 45;
-        const numCols = Math.ceil(window.innerWidth / colW);
-        const columns: Column[] = Array.from({ length: numCols }, (_, i) => ({
-            x: i * colW,
-            y: -Math.random() * window.innerHeight,
-            speed: 0.4 + Math.random() * 0.9,
-            chars: Array.from({ length: 30 }, () => MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]),
-            length: 8 + Math.floor(Math.random() * 16),
-            opacity: 0.05 + Math.random() * 0.12,
-        }));
-
         // ─── Floating code snippets ───
         const makeBlock = (): CodeBlock => ({
             x: 80 + Math.random() * (window.innerWidth - 300),
@@ -93,37 +69,6 @@ const MatrixBackground = () => {
             // Semi-transparent clear (trail effect)
             ctx.fillStyle = 'rgba(0,0,0,0.08)';
             ctx.fillRect(0, 0, W, H);
-
-            // ─── Matrix columns ───
-            ctx.font = '13px monospace';
-            columns.forEach((col) => {
-                col.y += col.speed;
-                if (col.y > H + col.length * 16) {
-                    col.y = -col.length * 16;
-                    col.opacity = 0.05 + Math.random() * 0.12;
-                }
-                // Mutate chars occasionally
-                if (frame % 6 === 0) {
-                    const ri = Math.floor(Math.random() * col.chars.length);
-                    col.chars[ri] = MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)];
-                }
-
-                col.chars.forEach((ch, i) => {
-                    const cy = col.y + i * 16 - col.length * 16;
-                    if (cy < -16 || cy > H) return;
-                    const progress = i / col.length;
-                    // Leading char brighter
-                    const isLead = i === col.chars.length - 1;
-                    const alpha = isLead
-                        ? col.opacity * 5
-                        : col.opacity * (1 - progress * 0.6);
-                    const r = isLead ? 200 : 100;
-                    const g = isLead ? 180 : 80;
-                    const b = isLead ? 230 : 200;
-                    ctx.fillStyle = `rgba(${r},${g},${b},${Math.min(alpha, 0.7)})`;
-                    ctx.fillText(ch, col.x, cy);
-                });
-            });
 
             // ─── Floating code snippets ───
             if (frame % 300 === 0) {
@@ -159,7 +104,8 @@ const MatrixBackground = () => {
                 ctx.textAlign = 'left';
                 ctx.fillStyle = 'rgba(120,200,120,0.2)';
                 ctx.fillText(`> LOADING PROFILE...`, 16, H - 40);
-                ctx.fillText(`> MEM: ${((performance as any).memory?.usedJSHeapSize ?? 0) > 0 ? Math.round(((performance as any).memory?.usedJSHeapSize ?? 0) / 1e6) : '?'} MB`, 16, H - 26);
+                const performanceMemory = (performance as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize ?? 0;
+ctx.fillText(`> MEM: ${performanceMemory > 0 ? Math.round(performanceMemory / 1e6) : '?'} MB`, 16, H - 26);
                 ctx.fillText(`> THREADS: ACTIVE`, 16, H - 12);
             }
 

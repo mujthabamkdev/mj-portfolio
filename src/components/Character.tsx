@@ -4,6 +4,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib';
 
+
 /* ──────────────────────────────────────
    Shared mouse tracker (for subtle gaze blend)
    ────────────────────────────────────── */
@@ -14,6 +15,27 @@ if (typeof window !== 'undefined') {
         mouse.y = -((e.clientY / window.innerHeight) * 2 - 1);
     }, { passive: true });
 }
+
+/* ──────────────────────────────────────
+   Footstep audio — module level so it survives Character remounts
+   ────────────────────────────────────── */
+let audioCtx: AudioContext | null = null;
+function ensureAudio() {
+    if (typeof window === 'undefined') return;
+    if (!audioCtx) {
+        const Ctx = window.AudioContext ??
+            (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) return;
+        try { audioCtx = new Ctx(); } catch { return; }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+}
+if (typeof window !== 'undefined') {
+    // Browsers require a user gesture before audio may sound
+    window.addEventListener('pointerdown', ensureAudio);
+    window.addEventListener('keydown', ensureAudio);
+}
+window.addEventListener('load', ensureAudio); // attempt eager (may be suspended until gesture)
 
 /* ──────────────────────────────────────
    Character model
@@ -37,6 +59,10 @@ function CharacterModel({ contentSide }: CharacterModelProps) {
     const rUpperArm = useRef<THREE.Bone | null>(null);
     const lLowerArm = useRef<THREE.Bone | null>(null);
     const rLowerArm = useRef<THREE.Bone | null>(null);
+    const lUpperLeg = useRef<THREE.Bone | null>(null);
+    const rUpperLeg = useRef<THREE.Bone | null>(null);
+    const lLowerLeg = useRef<THREE.Bone | null>(null);
+    const rLowerLeg = useRef<THREE.Bone | null>(null);
 
     useEffect(() => {
         clonedScene.traverse((child) => {
@@ -53,16 +79,24 @@ function CharacterModel({ contentSide }: CharacterModelProps) {
             if (!lLowerArm.current && (n === 'j_bip_l_lowerarm' || (n.includes('left') && (n.includes('lower') || n.includes('fore'))))) lLowerArm.current = bone;
             if (!rLowerArm.current && (n === 'j_bip_r_lowerarm' || (n.includes('right') && (n.includes('lower') || n.includes('fore'))))) rLowerArm.current = bone;
 
-            // Material quality
+            // Leg bones
+            if (!lUpperLeg.current && (n === 'j_bip_l_upperleg' || (n.includes('left') && n.includes('upperleg')))) lUpperLeg.current = bone;
+            if (!rUpperLeg.current && (n === 'j_bip_r_upperleg' || (n.includes('right') && n.includes('upperleg')))) rUpperLeg.current = bone;
+            if (!lLowerLeg.current && (n === 'j_bip_l_lowerleg' || (n.includes('left') && n.includes('lowerleg')))) lLowerLeg.current = bone;
+            if (!rLowerLeg.current && (n === 'j_bip_r_lowerleg' || (n.includes('right') && n.includes('lowerleg')))) rLowerLeg.current = bone;
+
+            // Shadow-style material
             if ((child as THREE.Mesh).isMesh) {
                 const mesh = child as THREE.Mesh;
-                (mesh.material as THREE.MeshStandardMaterial).roughness = 0.55;
+                const material = mesh.material as THREE.MeshStandardMaterial;
+                material.color.setHex(0x0d0d0d);
+                material.roughness = 1;
+                material.metalness = 0;
                 mesh.castShadow = true;
             }
         });
 
-        // ─── Straight arms close to body ───
-        // VRM rest pose has arms up. Rotating Z negative on left arm brings it down.
+        // ─── Arms neutral, hands at sides ───
         if (lUpperArm.current) {
             lUpperArm.current.rotation.x = 0;
             lUpperArm.current.rotation.y = 0.12;   // slight inward tuck
@@ -84,61 +118,93 @@ function CharacterModel({ contentSide }: CharacterModelProps) {
             rLowerArm.current.rotation.y = 0;
             rLowerArm.current.rotation.z = 0;
         }
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Target X: character is on the OPPOSITE side of content
-    // content=left  → character right → targetX = +0.9
-    // content=right → character left  → targetX = -0.9
-    const targetXRef = useRef(contentSide === 'left' ? 0.9 : -0.9);
+    // Character keeps walking one direction forever; wraps to the other edge
+    const lastStepRef = useRef(0);
 
-    // Target head look: toward content
-    // content=left  → look left  → negative Y rotation
-    // content=right → look right → positive Y rotation
-    const targetHeadYRef = useRef(contentSide === 'left' ? -0.45 : 0.45);
+    // ─── One soft footstep "thud" per stride ───
+    const playFootstep = () => {
+        ensureAudio();
+        const ctx = audioCtx;
+        if (!ctx || ctx.state !== 'running') return; // stays silent until a user gesture unlocks audio
+        const now = ctx.currentTime;
+        const duration = 0.12;
+        const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * duration), ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.6);
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 620;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.12, now);          // audible but soft
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        src.start(now);
+        src.stop(now + duration + 0.01);
+    };
 
     useFrame((state, delta) => {
         if (!groupRef.current) return;
         const time = state.clock.getElapsedTime();
 
-        // ─── Enforce arm pose every frame (prevents model animation overriding) ───
+        // ─── Slow professional walk: constant direction, wraps to the other side ───
+        const edge = state.viewport.width / 2 + 0.6;
+        const stepFreq = 1.05;                           // slow, deliberate steps
+        const swing = Math.sin(time * stepFreq * Math.PI);
+        const speed = (state.viewport.width + 1.2) / 14; // full crossing ~14s
+        const dir = 1;                                   // always walks left → right
+
+        let x = groupRef.current.position.x + dir * speed * delta;
+        if (x > edge) x = -edge;                         // exits right, re-enters left
+        groupRef.current.position.x = x;
+
+        // Footstep exactly when stride crosses stance (swing zero crossing)
+        const stepPhase = Math.floor(time * stepFreq);
+        if (stepPhase !== lastStepRef.current) {
+            lastStepRef.current = stepPhase;
+            playFootstep();
+        }
+
+        // ─── Legs: slow stride, straight and inline with body ───
+        if (lUpperLeg.current) { lUpperLeg.current.rotation.set(swing * 0.38, 0, 0); }
+        if (rUpperLeg.current) { rUpperLeg.current.rotation.set(-swing * 0.38, 0, 0); }
+        if (lLowerLeg.current) { lLowerLeg.current.rotation.set(Math.max(0, -swing) * 0.35, 0, 0); }
+        if (rLowerLeg.current) { rLowerLeg.current.rotation.set(Math.max(0, swing) * 0.35, 0, 0); }
+
+        // ─── Arms: relaxed straight down at sides (neutral, no chest push) ───
         if (lUpperArm.current) { lUpperArm.current.rotation.set(0, 0.12, -1.3); }
         if (rUpperArm.current) { rUpperArm.current.rotation.set(0, -0.12, 1.3); }
         if (lLowerArm.current) { lLowerArm.current.rotation.set(0, 0, 0); }
         if (rLowerArm.current) { rLowerArm.current.rotation.set(0, 0, 0); }
 
-        // Update targets when prop changes
-        const isMobile = state.viewport.width < 2.0;
-        const offset = isMobile ? (state.viewport.width / 2.2) : 0.9;
-        const newTargetX = contentSide === 'left' ? offset : -offset;
+        // ─── Body: upright full side profile ───
+        groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, (Math.PI / 2) * 0.98, delta * 2);
+        // hip sway — slight roll alternating with each step
+        groupRef.current.rotation.z = Math.sin(time * stepFreq * Math.PI) * 0.03;
 
-        // Less head turn on mobile to make him peek into the frame more clearly
-        const headTurn = isMobile ? 0.6 : 0.45;
-        const newHeadY = contentSide === 'left' ? -headTurn : headTurn;
-        targetXRef.current = THREE.MathUtils.lerp(targetXRef.current, newTargetX, delta * 2.5);
-        targetHeadYRef.current = THREE.MathUtils.lerp(targetHeadYRef.current, newHeadY, delta * 2.5);
+        // gentle vertical bob: two dips per full stride, peaks at leg pass
+        groupRef.current.position.y = -0.85 + 0.02 * Math.sin(time * stepFreq * Math.PI * 2);
 
-        // ─── Position: smooth slide to opposite side ───
-        const baseY = -0.85;
-        groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, targetXRef.current, delta * 3);
-        groupRef.current.position.y = baseY + Math.sin(time * 1.0) * 0.01;
-
-        // ─── Body slight turn toward content ───
-        const targetBodyY = contentSide === 'left' ? -0.2 : 0.2;
-        groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetBodyY, delta * 2);
-
-        // ─── Head: section-based look direction + subtle mouse blend ───
-        if (headBone.current) {
-            // Primary: look toward content side; secondary: slight mouse tracking
-            const headTargetY = targetHeadYRef.current + mouse.x * 0.12;
-            const headTargetX = mouse.y * 0.1;
-            headBone.current.rotation.y = THREE.MathUtils.lerp(headBone.current.rotation.y, headTargetY, delta * 3);
-            headBone.current.rotation.x = THREE.MathUtils.lerp(headBone.current.rotation.x, headTargetX, delta * 3);
+        // ─── Upper body counter-sway syncs with legs ───
+        if (spineBone.current) {
+            spineBone.current.rotation.z = THREE.MathUtils.lerp(spineBone.current.rotation.z || 0, -0.02, delta * 2);
+            spineBone.current.rotation.y = THREE.MathUtils.lerp(spineBone.current.rotation.y || 0, -0.03, delta * 2);
         }
         if (neckBone.current) {
-            neckBone.current.rotation.y = THREE.MathUtils.lerp(neckBone.current.rotation.y, targetHeadYRef.current * 0.3, delta * 2);
+            neckBone.current.rotation.y = THREE.MathUtils.lerp(neckBone.current.rotation.y, -0.04, delta * 2);
         }
-        if (spineBone.current) {
-            spineBone.current.rotation.y = THREE.MathUtils.lerp(spineBone.current.rotation.y, targetHeadYRef.current * 0.1, delta * 1.5);
+
+        // ─── Head: steady forward, whisper of mouse sway ───
+        if (headBone.current) {
+            headBone.current.rotation.y = THREE.MathUtils.lerp(headBone.current.rotation.y, -0.12 + mouse.x * 0.05, delta * 2);
+            headBone.current.rotation.x = THREE.MathUtils.lerp(headBone.current.rotation.x, mouse.y * 0.04, delta * 2);
         }
     });
 
@@ -163,6 +229,23 @@ function CameraRig() {
    Scene
    ────────────────────────────────────── */
 function SceneContent({ contentSide }: { contentSide: 'left' | 'right' }) {
+    const glowTexture = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+        gradient.addColorStop(0, 'rgba(180, 160, 229, 0.55)');
+        gradient.addColorStop(0.35, 'rgba(139, 111, 212, 0.25)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 256, 256);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        return texture;
+    }, []);
+
     return (
         <>
             <CameraRig />
@@ -170,7 +253,24 @@ function SceneContent({ contentSide }: { contentSide: 'left' | 'right' }) {
             <directionalLight position={[4, 6, 5]} intensity={2.0} color="#e8e0ff" castShadow />
             <directionalLight position={[-3, 4, 3]} intensity={0.8} color="#9b7fe8" />
             <pointLight position={[0, 3, -3]} intensity={1.5} color="#b4a0e5" distance={12} />
+            <pointLight position={[0, 2, -3.5]} intensity={4} color="#c7baf0" distance={14} />
             <pointLight position={[0, 1.5, 4]} intensity={0.6} color="#ffffff" distance={8} />
+            <pointLight position={[6, 2, -2]} intensity={2} color="#b4a0e5" distance={10} />
+            <pointLight position={[-6, 2, -2]} intensity={2} color="#b4a0e5" distance={10} />
+            <directionalLight position={[5, 2, -2]} intensity={1.5} color="#b4a0e5" />
+            <directionalLight position={[-5, 2, -2]} intensity={1.5} color="#b4a0e5" />
+            {glowTexture && (
+                <sprite position={[0, -0.85, -2.5]} scale={[13, 13, 1]}>
+                    <spriteMaterial
+                        map={glowTexture}
+                        color="#c7baf0"
+                        transparent
+                        opacity={0.55}
+                        blending={THREE.AdditiveBlending}
+                        depthWrite={false}
+                    />
+                </sprite>
+            )}
             <CharacterModel contentSide={contentSide} />
         </>
     );
@@ -200,7 +300,5 @@ const Character = ({ contentSide }: CharacterProps) => (
         </Canvas>
     </div>
 );
-
-useGLTF.preload('/models/mj_profile_porfolio.vrm.glb');
 
 export default Character;

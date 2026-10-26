@@ -54,7 +54,7 @@ const Projects = () => {
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
                   {/* Number */}
                   <div className="md:col-span-2">
-                    <span className="text-5xl md:text-6xl font-black text-white/[0.06] tracking-tight leading-none select-none group-hover:text-accent/20 transition-colors duration-500">
+                    <span className="text-5xl md:text-6xl font-black text-white/20 tracking-tight leading-none select-none group-hover:text-accent/50 transition-colors duration-500">
                       {project.number}
                     </span>
                   </div>
@@ -80,7 +80,7 @@ const Projects = () => {
                     </p>
 
                     <div>
-                      <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mb-3">Tools & Features</p>
+                      <p className="text-[10px] tracking-[0.2em] text-white/50 uppercase mb-3">Tools & Features</p>
                       <div className="flex flex-wrap gap-2">
                         {project.tech.map((t) => (
                           <span key={t} className="tech-tag">{t}</span>

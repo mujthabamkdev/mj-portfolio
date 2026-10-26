@@ -1,13 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
 
-const SYSTEM_PROMPT = `You are Mujthaba Mandayen Kandi — a Software Development Engineer with 6+ years of experience. You're responding to visitors on your personal portfolio website. Be friendly, engaging, professional, and slightly witty.
+const GITHUB_URL = 'https://github.com/mujthabamkdev';
 
-ABOUT YOU:
+const SYSTEM_PROMPT = `You are Mujthaba Mandayen Kandi — a Software Development Engineer. You're responding to visitors on your personal portfolio website. Be friendly, engaging, professional, and slightly witty.
+
+The ONLY facts you may present about yourself are those below. This is your complete profile:
+
+ABOUT:
 - Full name: Mujthaba Mandayen Kandi
-- Current role: Application Developer at Ant International (Alipay+), Singapore (since Aug 2022)
-- Previous: Software Developer at Jurong Port (Mar 2019 – Jul 2022), Junior Developer at Kalaam Telecom Bahrain (Apr 2018 – Feb 2019), Trainee at Kalaam Telecom (Jul 2017 – Mar 2018)
+- Experience: 6+ years in software development
+- Current role: Software Development Engineer at Ant International, Malaysia (Aug 2024 — Present)
+- Previous: Software Development Engineer at Mediaconcepts Consulting, Malaysia (Apr 2022 — May 2024; nearshore developer for Jurong Port Singapore)
+- Previous: Software Development Engineer at KG Information System, Malaysia (Aug 2017 — Apr 2019; insurance products for Great Eastern Life)
+- Previous: Software Development Associate at Softend Technoserve, Kerala, India (Jan 2017 — Jun 2017; Visitor Management System for Indian Naval Academy)
+- Previous: Software Development Intern at I Fly Techsoft, Bangalore, India (Sep 2019 — Apr 2022; school and college management systems)
 - Education: B.Tech in Computer Science from KMEA Engineering College, Kerala, India (2013-2017)
-- Location: Based in Singapore
+- Location: Based in Malaysia
+- GitHub: github.com/mujthabamkdev
 
 TECHNICAL SKILLS:
 - Backend: Java, Spring Boot, Microservices, Hibernate, SQL, REST APIs, Kafka, Redis
@@ -18,10 +27,10 @@ TECHNICAL SKILLS:
 - Others: Agile/Scrum, System Design, Code Review, Technical Mentoring
 
 KEY PROJECTS:
-1. Alipay+ Payment Gateway — Cross-border payment processing for Southeast Asian markets. Java Spring Boot microservices.
-2. Jurong Port Digital Transformation — Modernized port operations with Angular dashboards and Spring Boot APIs.
-3. Order Management System — Full-stack order processing system.
-4. Automated DevOps Pipeline — CI/CD pipeline with Jenkins, Docker, K8s.
+1. Instalment Card Binding — Streamlined instalment card payments for Ant International. Java Spring, Java 17, RPC, SQL.
+2. IFE — Insurance Frontend — Web solution for insurance claims and policy creation. Angular 10, Java 8, Spring Microservices, Elasticsearch, Material UI.
+3. Jurong Port Online — Migrated legacy Java framework projects to Angular and Java Spring Boot. Angular 6, Java 8, Spring Boot, Oracle, Microservices.
+4. Gatekeeper — Visitor Management — Visitor Management System at Indian Naval Academy. .NET MVC, C#, JavaScript, SQL Server, Bootstrap.
 
 PERSONALITY:
 - Passionate about clean code and architecture
@@ -29,18 +38,21 @@ PERSONALITY:
 - Into AI exploration, vibe coding, and building side projects
 - Curious, technical, approachable
 
-RULES:
-- Answer questions about your experience, skills, projects naturally
-- If asked something unrelated to tech/your career, still be engaging but steer toward your expertise
-- Keep responses concise (2-4 sentences max)
-- Use casual but professional tone
-- You can use emojis sparingly
-- If you don't know something, be honest but redirect to what you do know`;
+GROUNDING RULES (very important):
+- Answer questions about experience, skills, and projects above naturally, in first person.
+- If a question needs info that is NOT in the profile above (personal life details, salaries, private opinions, claims about companies you didn't list, exact dates/salaries, anything unverifiable), still answer briefly and helpfully BUT explicitly tag it: start that part with "(outside profile)". Never invent profile facts — no fake details, no fake numbers.
+- When extra info would live elsewhere, point the visitor to the GitHub: ${GITHUB_URL}.
+- Keep responses concise (2-4 sentences max), casual but professional, sparing emojis.`;
 
 interface Message {
     role: 'user' | 'assistant';
     content: string;
 }
+
+// OpenRouter free endpoint (set VITE_OPENROUTER_API_KEY in your env)
+// falls back to Pollinations free tier if no key is configured
+const OPENROUTER_MODEL = 'google/gemma-4-31b-it:free';
+const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
 
 const ChatBot = () => {
     const [messages, setMessages] = useState<Message[]>([
@@ -63,45 +75,77 @@ const ChatBot = () => {
         setInput('');
         setIsLoading(true);
 
-        let replied = false;
-        try {
-            const response = await fetch('https://text.pollinations.ai/openai', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: 'openai',
-                    messages: [
-                        { role: 'system', content: SYSTEM_PROMPT },
-                        ...messages.map((m) => ({ role: m.role, content: m.content })),
-                        { role: 'user', content: userMessage.content },
-                    ],
-                    max_tokens: 300,
-                    temperature: 0.7,
-                }),
-            });
+        const payloadMessages = [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...messages.map((m) => ({ role: m.role, content: m.content })),
+            { role: 'user', content: userMessage.content },
+        ];
 
-            const data = await response.json();
-            let reply = data.choices?.[0]?.message?.content;
-            if (reply) {
-                // Filter out Pollinations API broadcast warnings
-                const warningPattern = /⚠️ \*\*IMPORTANT NOTICE\*\* ⚠️[\s\S]*/;
-                reply = reply.replace(warningPattern, '').trim();
+        const clean = (raw: string) => {
+            // Filter out provider broadcast warnings / stray model metadata
+            return raw
+                .replace(/⚠️[\s\S]*/g, '')
+                .replace(/<think>[\s\S]*?<\/think>/g, '')
+                .trim();
+        };
 
-                if (!reply) reply = "I'm experiencing a bit of static right now, what was that?";
+        let reply = '';
+        let lastError = '';
 
-                setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
-                replied = true;
+        // ─── Primary: OpenRouter free model ───
+        if (openRouterKey) {
+            try {
+                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${openRouterKey}`,
+                    },
+                    body: JSON.stringify({
+                        model: OPENROUTER_MODEL,
+                        messages: payloadMessages,
+                        max_tokens: 300,
+                        temperature: 0.7,
+                    }),
+                });
+                const data = await response.json();
+                const content = data.choices?.[0]?.message?.content;
+                if (content) reply = clean(content);
+                else lastError = `OpenRouter error: ${data.error?.message ?? response.status}`;
+            } catch (err) {
+                lastError = `OpenRouter request failed: ${err}`;
             }
-        } catch (err) {
-            console.log(`Error with Pollinations API:`, err);
+        } else {
+            lastError = 'No OpenRouter key configured';
         }
 
-        if (!replied) {
+        // ─── Fallback: Pollinations free tier ───
+        if (!reply) {
+            try {
+                const response = await fetch('https://text.pollinations.ai/openai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: 'openai',
+                        messages: payloadMessages,
+                        max_tokens: 300,
+                        temperature: 0.7,
+                    }),
+                });
+                const data = await response.json();
+                const content = data.choices?.[0]?.message?.content;
+                if (content) reply = clean(content);
+            } catch (err) {
+                console.log('Pollinations fallback error:', err, lastError);
+            }
+        }
+
+        if (reply) {
+            setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+        } else {
             setMessages((prev) => [...prev, {
                 role: 'assistant',
-                content: "I'm getting a lot of traffic right now! 🔥 Try again in a minute — free AI tier has rate limits."
+                content: "I'm offline for a moment 🔧 New AI route is being set up. Meanwhile my GitHub has the real me: " + GITHUB_URL,
             }]);
         }
 

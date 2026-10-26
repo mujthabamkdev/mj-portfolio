@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import ErrorBoundary from './components/ErrorBoundary';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -9,7 +10,8 @@ import Contact from './components/Contact';
 import Footer from './components/Footer';
 import ResumeModal from './components/ResumeModal';
 import Loading from './components/Loading';
-import Character from './components/Character';
+import { lazy, Suspense } from 'react';
+const Character = lazy(() => import('./components/Character'));
 import CustomCursor from './components/CustomCursor';
 import PlaySection from './components/PlaySection';
 import MatrixBackground from './components/MatrixBackground';
@@ -95,7 +97,11 @@ function Portfolio() {
       {/* 3D Character — fixed background layer */}
       {!isLoading && (
         <div className="fixed inset-0 z-[1] pointer-events-none">
-          <Character contentSide={contentSide} />
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <Character contentSide={contentSide} />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       )}
 
@@ -112,6 +118,15 @@ function Portfolio() {
 
       {!isLoading && (
         <button onClick={() => setIsResumeModalOpen(true)} className="resume-tab">
+          RESUME
+        </button>
+      )}
+      {!isLoading && (
+        <button
+          onClick={() => setIsResumeModalOpen(true)}
+          className="resume-tab-mobile md:hidden"
+          aria-label="Open resume"
+        >
           RESUME
         </button>
       )}
