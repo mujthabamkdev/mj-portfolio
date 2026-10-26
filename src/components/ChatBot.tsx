@@ -60,11 +60,12 @@ const ChatBot = () => {
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        const container = messagesRef.current;
+        if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
     }, [messages]);
 
     const sendMessage = async () => {
@@ -162,13 +163,8 @@ const ChatBot = () => {
 
     return (
         <div className="chatbot-container">
-            <div className="flex items-center gap-2 mb-4">
-                <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                <h3 className="text-sm font-mono tracking-widest text-accent uppercase">Talk to Me</h3>
-            </div>
-
             {/* Messages */}
-            <div className="chatbot-messages">
+            <div ref={messagesRef} className="chatbot-messages" role="log" aria-label="Conversation with MJ" aria-live="polite">
                 {messages.map((msg, i) => (
                     <div key={i} className={`chat-bubble ${msg.role}`}>
                         {msg.role === 'assistant' && (
@@ -187,7 +183,6 @@ const ChatBot = () => {
                         </div>
                     </div>
                 )}
-                <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}
@@ -199,6 +194,7 @@ const ChatBot = () => {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Ask me anything..."
+                    aria-label="Your message to MJ"
                     className="chatbot-input"
                     disabled={isLoading}
                 />
@@ -206,6 +202,7 @@ const ChatBot = () => {
                     onClick={sendMessage}
                     disabled={isLoading || !input.trim()}
                     className="chatbot-send"
+                    aria-label="Send message"
                 >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" />

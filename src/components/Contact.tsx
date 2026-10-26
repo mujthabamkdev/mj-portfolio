@@ -20,7 +20,7 @@ const socialLinks = [
 const Contact = () => {
     return (
         <section id="contact" className="py-32 px-6 relative">
-            <div className="max-w-6xl mx-auto">
+            <div className="w-full">
                 {/* Section Header */}
                 <div className="mb-16 reveal">
                     <p className="text-xs tracking-[0.3em] text-accent uppercase mb-3">// CONNECT</p>
@@ -34,7 +34,7 @@ const Contact = () => {
                 </div>
 
                 {/* Social Links */}
-                <div className="max-w-2xl">
+                <div className="w-full">
                     {socialLinks.map((link, index) => (
                         <a
                             key={link.label}

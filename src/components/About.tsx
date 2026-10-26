@@ -1,4 +1,4 @@
-    const aboutCards = [
+const aboutCards = [
     {
         title: 'Full-Stack Developer',
         description: 'Building enterprise-grade applications with Java Spring Boot, Angular, and TypeScript. Experienced in end-to-end development from architecture to deployment.',
@@ -19,9 +19,8 @@
 const About = () => {
     return (
         <section id="about" className="py-32 px-6 relative">
-            {/* Content pushed to the right half — character sits on the left */}
-            <div className="max-w-7xl mx-auto flex justify-end">
-                <div className="w-full md:w-[58%]">
+            <div className="w-full">
+                <div className="w-full">
                     {/* Section Header */}
                     <div className="mb-16 reveal">
                         <p className="text-xs tracking-[0.3em] text-accent uppercase mb-3">// ABOUT</p>
@@ -35,7 +34,7 @@ const About = () => {
                         {aboutCards.map((card, index) => (
                             <div
                                 key={card.title}
-                                className="dashed-card bracket-card rounded-lg p-8 reveal"
+                                className="dashed-card bracket-card rounded-lg p-6 lg:p-8 flex flex-col min-w-0 reveal"
                                 style={{ transitionDelay: `${index * 0.15}s` }}
                             >
                                 {/* Card icon */}
@@ -53,7 +52,7 @@ const About = () => {
                                     {card.description}
                                 </p>
 
-                                <div className="flex flex-wrap gap-2">
+                                    <div className="flex flex-wrap gap-2 mt-auto">
                                     {card.tags.map((tag) => (
                                         <span key={tag} className="tech-tag">
                                             {tag}

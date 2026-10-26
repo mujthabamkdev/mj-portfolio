@@ -52,7 +52,7 @@ const experiences = [
 const Experience = () => {
     return (
         <section id="work" className="py-32 px-6 relative">
-            <div className="max-w-6xl mx-auto">
+            <div className="w-full">
                 {/* Section Header */}
                 <div className="mb-16 reveal">
                     <p className="text-xs tracking-[0.3em] text-accent uppercase mb-3">// EXPERIENCE</p>
@@ -72,12 +72,12 @@ const Experience = () => {
                             <div className="py-10 grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start">
                                 {/* Left: Role & Company */}
                                 <div className="md:col-span-7">
-                                    <div className="flex items-center gap-3 mb-2">
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-2">
                                         <h3 className="text-lg md:text-xl font-semibold tracking-tight group-hover:text-accent transition-colors duration-300">
                                             {exp.role}
                                         </h3>
                                         {index === 0 && (
-                                            <span className="px-2 py-0.5 text-[10px] tracking-wider uppercase bg-accent/10 text-accent border border-accent/20 rounded-sm">
+                                            <span className="shrink-0 px-2 py-0.5 text-[10px] tracking-wider uppercase bg-accent/10 text-accent border border-accent/20 rounded-sm">
                                                 Current
                                             </span>
                                         )}

@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import ErrorBoundary from './components/ErrorBoundary';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -11,65 +10,44 @@ import Footer from './components/Footer';
 import ResumeModal from './components/ResumeModal';
 import Loading from './components/Loading';
 import SecurityScan from './components/SecurityScan';
-import { lazy, Suspense } from 'react';
-const Character = lazy(() => import('./components/Character'));
+import Bee, { type BeeLaunchOrigin } from './components/Bee';
+import BeeLaunchTransition from './components/BeeLaunchTransition';
 import CustomCursor from './components/CustomCursor';
 import PlaySection from './components/PlaySection';
 import MatrixBackground from './components/MatrixBackground';
 import PlayPage from './pages/PlayPage';
 
-// Defines which SIDE the CONTENT is on for each section
-// Character goes to the OPPOSITE side and looks toward content
-const SECTION_SIDES: Record<string, 'left' | 'right'> = {
-  hero: 'left',   // content left → character right
-  about: 'right',  // content right → character left
-  work: 'left',   // content left → character right
-  projects: 'right',  // content right → character left
-  play: 'left',   // content left → character right
-  contact: 'left',   // content left → character right
-};
+type VisitorChoice = 'yes' | 'no';
+const VISITOR_CHOICE_KEY = 'mj-portfolio:visitor-choice:v1';
 
-function Portfolio() {
+function readVisitorChoice(): VisitorChoice | null {
+  try {
+    const choice = localStorage.getItem(VISITOR_CHOICE_KEY);
+    return choice === 'yes' || choice === 'no' ? choice : null;
+  } catch {
+    // Storage may be blocked; keep the gate usable for this visit.
+    return null;
+  }
+}
+
+function Portfolio({ onBeeLaunch }: { onBeeLaunch: (origin: BeeLaunchOrigin) => void }) {
   const [isLoading, setIsLoading] = useState(true);
-  const [gatePassed, setGatePassed] = useState(false);
+  const [visitorChoice, setVisitorChoice] = useState<VisitorChoice | null>(readVisitorChoice);
+  const gatePassed = visitorChoice === 'yes';
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<string>('hero');
+
+  const rememberVisitorChoice = (choice: VisitorChoice) => {
+    try {
+      localStorage.setItem(VISITOR_CHOICE_KEY, choice);
+    } catch {
+      // A storage failure must not prevent either button from working.
+    }
+    setVisitorChoice(choice);
+  };
 
   const handleLoadingComplete = useCallback(() => {
     setIsLoading(false);
   }, []);
-
-  // IntersectionObserver: track which section is most visible
-  useEffect(() => {
-    if (isLoading) return;
-
-    const sectionIds = Object.keys(SECTION_SIDES);
-    const visibilityMap: Record<string, number> = {};
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          visibilityMap[entry.target.id] = entry.intersectionRatio;
-        });
-        // Find most visible section
-        const best = Object.entries(visibilityMap).sort((a, b) => b[1] - a[1])[0];
-        if (best && best[1] > 0) setActiveSection(best[0]);
-      },
-      {
-        threshold: Array.from({ length: 21 }, (_, i) => i * 0.05),
-        rootMargin: '-25% 0px -55% 0px',
-      }
-    );
-
-    const timer = setTimeout(() => {
-      sectionIds.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) observer.observe(el);
-      });
-    }, 200);
-
-    return () => { clearTimeout(timer); observer.disconnect(); };
-  }, [isLoading]);
 
   // Scroll-triggered reveal animations
   useEffect(() => {
@@ -89,26 +67,20 @@ function Portfolio() {
     return () => { clearTimeout(timer); observer.disconnect(); };
   }, [isLoading]);
 
-  const contentSide = SECTION_SIDES[activeSection] ?? 'left';
-
   return (
     <div className="min-h-screen relative bg-black">
       {isLoading && <Loading onComplete={handleLoadingComplete} />}
       {!isLoading && !gatePassed && (
-        <SecurityScan onProceed={() => setGatePassed(true)} />
+        <SecurityScan
+          declined={visitorChoice === 'no'}
+          onProceed={() => rememberVisitorChoice('yes')}
+          onDecline={() => rememberVisitorChoice('no')}
+        />
       )}
       {!isLoading && !gatePassed && <CustomCursor />}
 
-      {/* 3D Character — fixed background layer */}
-      {!isLoading && (
-        <div className="fixed inset-0 z-[1] pointer-events-none">
-          <ErrorBoundary>
-            <Suspense fallback={null}>
-              <Character contentSide={contentSide} />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
-      )}
+      {/* Electronic bee — perches on active section headers, free-flies between */}
+      {!isLoading && gatePassed && !isResumeModalOpen && <Bee onLaunch={onBeeLaunch} />}
 
       {/* Matrix/code animated background — behind everything */}
       {!isLoading && <MatrixBackground />}
@@ -145,19 +117,40 @@ function Portfolio() {
         <PlaySection />
         <Contact />
         <Footer />
-        <ResumeModal isOpen={isResumeModalOpen} onClose={() => setIsResumeModalOpen(false)} />
       </div>
+      <ResumeModal isOpen={isResumeModalOpen} onClose={() => setIsResumeModalOpen(false)} />
     </div>
   );
 }
 
 function App() {
+  const [beeLaunch, setBeeLaunch] = useState<BeeLaunchOrigin | null>(null);
+  const routesRef = useRef<HTMLDivElement>(null);
+  const finishBeeLaunch = useCallback(() => setBeeLaunch(null), []);
+
+  useEffect(() => {
+    const routes = routesRef.current;
+    if (!beeLaunch || !routes) return;
+    routes.setAttribute('inert', '');
+    return () => {
+      routes.removeAttribute('inert');
+      const title = routes.querySelector<HTMLElement>('.play-page-title');
+      if (title) {
+        title.setAttribute('tabindex', '-1');
+        title.focus({ preventScroll: true });
+      }
+    };
+  }, [beeLaunch]);
+
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Portfolio />} />
-        <Route path="/play" element={<PlayPage />} />
-      </Routes>
+      <div ref={routesRef}>
+        <Routes>
+          <Route path="/" element={<Portfolio onBeeLaunch={setBeeLaunch} />} />
+          <Route path="/play" element={<PlayPage />} />
+        </Routes>
+      </div>
+      {beeLaunch && <BeeLaunchTransition origin={beeLaunch} onComplete={finishBeeLaunch} />}
     </BrowserRouter>
   );
 }

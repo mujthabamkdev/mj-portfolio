@@ -4,17 +4,16 @@ const PlaySection = () => {
     const navigate = useNavigate();
 
     return (
-        <section id="play" className="section-padding relative">
-            <div className="max-w-7xl mx-auto">
-                {/* Content stays LEFT — character will be on RIGHT */}
-                <div className="w-full md:w-[48%]">
-                    <p className="section-tag reveal">// INTERACTIVE</p>
+        <section id="play" className="py-32 px-6 relative">
+            <div className="w-full">
+                <div className="w-full">
+                    <p className="text-xs tracking-[0.3em] text-accent uppercase mb-3 reveal">// INTERACTIVE</p>
 
-                    <h2 className="text-4xl md:text-5xl font-bold mb-6 reveal">
+                    <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold uppercase tracking-tight mb-6 reveal">
                         Play With Me
                     </h2>
 
-                    <p className="text-muted text-base leading-relaxed mb-10 reveal max-w-md">
+                    <p className="text-muted text-base leading-relaxed mb-10 reveal">
                         Challenge me to a <span className="accent-text font-semibold">penalty shootout</span>, or chat with my <span className="accent-text font-semibold">AI twin</span> that knows my career inside-out.
                     </p>
 

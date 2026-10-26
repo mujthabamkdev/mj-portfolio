@@ -1,11 +1,11 @@
 const Hero = () => {
   return (
-    <section id="hero" className="min-h-screen flex items-center relative overflow-hidden px-6">
+    <section id="hero" className="min-h-[100svh] flex items-center relative overflow-hidden px-6 pt-28 pb-32">
       {/* Central glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-accent/8 filter blur-[120px] animate-glow-pulse pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto w-full relative z-10">
-        {/* Text content — centered on top of character */}
+      <div className="w-full relative z-10">
+        {/* Text content */}
         <div className="relative z-20">
           {/* Surveillance tag */}
           <div className="flex items-center gap-2 mb-4 reveal" style={{ transitionDelay: '0.1s' }}>
@@ -21,7 +21,7 @@ const Hero = () => {
           </p>
 
           {/* Name */}
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight uppercase leading-none mb-6 reveal" style={{ transitionDelay: '0.2s' }}>
+          <h1 className="text-[clamp(2rem,12vw,3rem)] sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight uppercase leading-none mb-6 reveal" style={{ transitionDelay: '0.2s' }}>
             <span className="gradient-text">MUJTHABA</span>
           </h1>
 

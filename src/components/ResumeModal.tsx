@@ -75,7 +75,7 @@ const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
 
       {/* Modal */}
       <div
-        className="relative bg-dark-50 border border-white/10 rounded-lg shadow-2xl w-full max-w-5xl h-[90vh] m-4 flex flex-col z-10"
+        className="relative bg-dark-50 border border-white/10 rounded-lg shadow-2xl w-[calc(100%-2rem)] max-w-5xl h-[90dvh] max-h-[calc(100dvh-2rem)] flex flex-col z-10"
         onClick={(e) => e.stopPropagation()}
         style={{ animation: 'scaleIn 0.3s ease-out forwards' }}
         role="dialog"
@@ -89,7 +89,8 @@ const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
             <button
               onClick={handleOpenInNewTab}
               className="p-2 hover:bg-white/5 rounded transition-colors"
-              title="Open in new tab"
+               title="Open in new tab"
+              aria-label="Open resume in new tab"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" />
@@ -100,6 +101,7 @@ const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
               download="Resume_Mujthaba.pdf"
               className="p-2 hover:bg-white/5 rounded transition-colors"
               title="Download"
+              aria-label="Download resume"
               onClick={(e) => e.stopPropagation()}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
@@ -109,6 +111,7 @@ const ResumeModal = ({ isOpen, onClose }: ResumeModalProps) => {
             <button
               ref={closeButtonRef}
               onClick={onClose}
+              aria-label="Close resume"
               className="p-2 hover:bg-white/5 rounded transition-colors"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">

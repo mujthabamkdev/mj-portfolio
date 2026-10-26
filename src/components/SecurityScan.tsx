@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 
 interface SecurityScanProps {
     onProceed: () => void;
+    onDecline: () => void;
+    declined?: boolean;
 }
 
 const EMAIL = 'mujthabamkdev@gmail.com';
@@ -109,11 +111,10 @@ const collectScan = async (): Promise<ScanRow[]> => {
     return rows;
 };
 
-const SecurityScan = ({ onProceed }: SecurityScanProps) => {
+const SecurityScan = ({ onProceed, onDecline, declined = false }: SecurityScanProps) => {
     const [rows, setRows] = useState<ScanRow[]>([]);
     const [typedCount, setTypedCount] = useState(0);
     const [verdictDone, setVerdictDone] = useState(false);
-    const [declined, setDeclined] = useState(false);
     const startedRef = useRef(false);
 
     const VERDICT = '⚠ SECURITY ANALYSIS COMPLETE — seems like you are NOT secured and needs a professional help.';
@@ -122,29 +123,29 @@ const SecurityScan = ({ onProceed }: SecurityScanProps) => {
 
     // Collect info once (StrictMode-safe)
     useEffect(() => {
-        if (startedRef.current) return;
+        if (declined || startedRef.current) return;
         startedRef.current = true;
         collectScan().then(setRows).catch(() => setRows([{ label: 'SCAN', value: 'partial — some sensors refused' }]));
-    }, []);
+    }, [declined]);
 
     // Typewriter over rows
     useEffect(() => {
-        if (rows.length === 0 || verdictDone) return;
+        if (declined || rows.length === 0 || verdictDone) return;
         if (typedCount >= totalChars) {
             const verdictDelay = window.setTimeout(() => setVerdictDone(true), 500);
             return () => clearTimeout(verdictDelay);
         }
         const t = window.setTimeout(() => setTypedCount(c => c + 3), 24);
         return () => clearTimeout(t);
-    }, [rows, typedCount, totalChars, verdictDone]);
+    }, [rows, typedCount, totalChars, verdictDone, declined]);
 
     const verdict = typedCount >= totalChars && rows.length > 0;
     const showButtons = verdictDone;
 
     if (declined) {
         return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl">
-                <div className="relative w-[92%] max-w-lg border border-white/10 bg-[#050505]/95 rounded-xl p-8 text-center overflow-hidden shadow-2xl">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4">
+                <div className="relative w-full max-w-lg max-h-[calc(100dvh-2rem)] border border-white/10 bg-[#050505]/95 rounded-xl p-6 sm:p-8 text-center overflow-y-auto shadow-2xl">
                     <div className="scan-line" />
                     <div className="text-5xl mb-4">👋</div>
                     <h1 className="font-mono text-2xl text-white mb-4 tracking-wider">GOODBYE, VISITOR.</h1>
@@ -166,13 +167,13 @@ const SecurityScan = ({ onProceed }: SecurityScanProps) => {
     }
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-xl px-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-xl p-4">
             <div className="grid-overlay pointer-events-none" />
-            <div className="relative w-[94%] max-w-xl border border-accent/20 bg-[#050505]/95 rounded-xl overflow-hidden shadow-2xl">
+            <div className="relative w-full max-w-xl max-h-[calc(100dvh-2rem)] border border-accent/20 bg-[#050505]/95 rounded-xl overflow-y-auto shadow-2xl">
                 {/* Header bar */}
                 <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-black/60">
-                    <span className="font-mono text-[11px] text-accent tracking-widest">◉ DEEP SCAN — VISITOR PROFILE</span>
-                    <span className="font-mono text-[10px] text-white/40 flex gap-1">
+                    <span className="font-mono text-[10px] sm:text-[11px] text-accent tracking-wider sm:tracking-widest">◉ DEEP SCAN — VISITOR PROFILE</span>
+                    <span className="font-mono text-[10px] text-white/40 flex shrink-0 gap-1 ml-2">
                         <span className="w-2 h-2 rounded-full bg-red-500/70 inline-block" />
                         <span className="w-2 h-2 rounded-full bg-yellow-500/70 inline-block" />
                         <span className="w-2 h-2 rounded-full bg-green-500/70 inline-block" />
@@ -182,7 +183,7 @@ const SecurityScan = ({ onProceed }: SecurityScanProps) => {
                 <div className="scan-line" />
 
                 {/* Scan output */}
-                <div className="px-5 py-4 font-mono text-[12px] leading-relaxed text-white/85 min-h-[320px] max-h-[55vh] overflow-y-auto">
+                <div className="px-5 py-4 font-mono text-[12px] leading-relaxed text-white/85 min-h-[min(320px,40svh)] max-h-[45svh] overflow-y-auto">
                     <p className="text-accent mb-2">&gt; intercepting visitor signals... done.</p>
                     {rows.length > 0 && (
                         <div>
@@ -213,12 +214,12 @@ const SecurityScan = ({ onProceed }: SecurityScanProps) => {
                     {verdict && (
                         <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 mb-4">
                             <p className="font-mono text-[13px] text-amber-300 leading-snug">
-                                {VERDICT.slice(0, Math.min(VERDICT.length, Math.max(0, rowsTypedCount - totalChars) * 3))}
+                                {VERDICT}
                             </p>
                         </div>
                     )}
                     {showButtons ? (
-                        <div className="flex gap-3">
+                        <div className="flex flex-col sm:flex-row gap-3">
                             <button
                                 onClick={onProceed}
                                 className="flex-1 bg-accent hover:bg-accent/80 transition-colors text-dark rounded py-3 font-bold tracking-widest text-sm"
@@ -226,7 +227,7 @@ const SecurityScan = ({ onProceed }: SecurityScanProps) => {
                                 YES, HELP ME →
                             </button>
                             <button
-                                onClick={() => setDeclined(true)}
+                                onClick={onDecline}
                                 className="flex-1 border border-white/20 hover:border-accent/60 hover:text-accent hover:bg-accent/5 transition-colors text-white/70 rounded py-3 font-bold tracking-widest text-sm"
                             >
                                 NO, BYE

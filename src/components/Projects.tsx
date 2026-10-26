@@ -32,9 +32,8 @@ const projects = [
 const Projects = () => {
   return (
     <section id="projects" className="py-32 px-6 relative">
-      {/* Content pushed to the right half — character sits on the left */}
-      <div className="max-w-7xl mx-auto flex justify-end">
-        <div className="w-full md:w-[58%]">
+      <div className="w-full">
+        <div className="w-full">
           {/* Section Header */}
           <div className="mb-16 reveal">
             <p className="text-xs tracking-[0.3em] text-accent uppercase mb-3">// PORTFOLIO</p>
@@ -48,21 +47,21 @@ const Projects = () => {
             {projects.map((project, index) => (
               <div
                 key={project.number}
-                className="group dashed-card rounded-lg p-8 md:p-10 reveal"
+                className="group dashed-card rounded-lg p-5 sm:p-8 lg:p-10 reveal"
                 style={{ transitionDelay: `${index * 0.1}s` }}
               >
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
                   {/* Number */}
                   <div className="md:col-span-2">
-                    <span className="text-5xl md:text-6xl font-black text-white/20 tracking-tight leading-none select-none group-hover:text-accent/50 transition-colors duration-500">
+                    <span className="text-5xl lg:text-6xl font-black text-white/20 tracking-tight leading-none select-none group-hover:text-accent/50 transition-colors duration-500">
                       {project.number}
                     </span>
                   </div>
 
                   {/* Content */}
-                  <div className="md:col-span-10">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
+                  <div className="md:col-span-10 min-w-0">
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      <div className="min-w-0">
                         <h3 className="text-xl md:text-2xl font-semibold tracking-tight group-hover:text-accent transition-colors duration-300">
                           {project.title}
                         </h3>
